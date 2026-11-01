@@ -1,9 +1,9 @@
 /*
  * پیکربندی عمومی مرورگر برای GitHub Pages.
- * قبل از انتشار، مقادیر واقعی Project URL و publishable/anon key را وارد کنید.
+ * این فایل فقط Project URL و Publishable key عمومی را دارد.
  * service_role، رمز یا هر راز سروری هرگز نباید در این فایل قرار گیرد.
  */
 window.BARINO_SUPABASE_CONFIG = {
-  url: '',
-  anonKey: ''
+  url: 'https://mnovxlrofiezaplqrunm.supabase.co',
+  anonKey: 'sb_publishable_-hOG6SdtzBjxroPwveQ_Bw_HZMLWcR-'
 };
