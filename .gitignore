@@ -1,0 +1,12 @@
+# رازها و فایل‌های محیطی (کلید عمومی Supabase می‌تواند برای GitHub Pages در supabase-config.js قرار گیرد)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# سیستم‌عامل و ابزارها
+.DS_Store
+Thumbs.db
+node_modules/
+coverage/
