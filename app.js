@@ -12,7 +12,7 @@
   const CITY_LIST = ['تهران','کرج','قزوین','قم','سمنان','زنجان','رشت','ساری','گرگان','اردبیل','تبریز','ارومیه','سنندج','همدان','اراک','اصفهان','یزد','شیراز','بوشهر','بندرعباس','کیش','اهواز','خرم‌آباد','کرمانشاه','ایلام','شهرکرد','یاسوج','کرمان','زاهدان','بیرجند','مشهد','بجنورد','اردبیل'];
   const TRUCKS = ['نیسان بار','خاور','تک','جفت','تریلی کفی','تریلی چادری','تریلی یخچالی','تانکر','کمپرسی','بوژی'];
   const CARGO_TYPES = ['عمومی','مصالح ساختمانی','کشاورزی','مواد غذایی','یخچالی','صنعتی','مایعات','اثاثیه','خطرناک'];
-  const state = { client: null, session: null, user: null, profile: null, isAdmin: false, route: 'home', authTab: 'login', signupRole: 'driver', online: navigator.onLine, initialized: false };
+  const state = { client: null, session: null, user: null, profile: null, isAdmin: false, route: 'home', authTab: 'login', signupRole: 'driver', pendingEmail: '', online: navigator.onLine, initialized: false };
 
   const icons = {
     truck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h11v11H3z"/><path d="M14 8h4l3 3v5h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
@@ -31,7 +31,13 @@
     phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.4 1.8.6 2.8.7a2 2 0 0 1 1.8 2.1"/></svg>',
     logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3"/><path d="M21 3v18"/></svg>',
     menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
-    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5.3"/><path d="M20 4v7h-7"/></svg>'
+    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5.3"/><path d="M20 4v7h-7"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v3"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12"/><circle cx="12" cy="12" r="2.5"/></svg>',
+    eyeOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6.5 0 10 6 10 6a18.3 18.3 0 0 1-3.1 3.7M6.2 6.2C3.6 8 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>',
+    arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>'
   };
 
   function esc(value) { return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char])); }
@@ -49,7 +55,9 @@
     if (/Invalid login credentials/i.test(raw)) return 'ایمیل یا رمز عبور درست نیست.';
     if (/Email not confirmed|EMAIL_VERIFICATION_REQUIRED/i.test(raw)) return 'ابتدا ایمیل خود را تأیید کنید؛ سپس وارد شوید.';
     if (/EMAIL_CONFIRMATION_NOT_ENFORCED/i.test(raw)) return 'تأیید ایمیل در Supabase فعال نشده است. در Authentication → Sign In / Providers آن را فعال و ذخیره کنید.';
-    if (/User already registered/i.test(raw)) return 'این ایمیل قبلاً ثبت شده است.';
+    if (/User already registered/i.test(raw)) return 'اگر قبلاً حساب ساخته‌اید، وارد شوید یا لینک تأیید را دوباره ارسال کنید.';
+    if (/rate limit|over_email_send_rate_limit/i.test(raw)) return 'درخواست‌های ایمیل زیاد بوده است؛ چند دقیقه صبر کنید و دوباره تلاش کنید.';
+    if (/Password should be at least|weak password/i.test(raw)) return 'رمز عبور انتخاب‌شده با سیاست امنیتی مجاز نیست.';
     if (/duplicate|unique/i.test(raw)) return 'این مورد قبلاً ثبت شده است.';
     if (/network|fetch/i.test(raw)) return 'ارتباط با اینترنت یا سرور برقرار نشد. دوباره تلاش کنید.';
     if (/permission|row-level|policy|not authorized|access denied/i.test(raw)) return 'شما اجازه انجام این عملیات را ندارید.';
@@ -80,9 +88,9 @@
     topbar.innerHTML = `
       <a class="brand" href="#home" data-route="home" aria-label="خانه بارینو"><span class="brand-mark">${icon('truck')}</span><span>بارینو</span></a>
       <div class="top-actions">
-        ${!configured ? '<span class="top-status"><i></i> آماده‌سازی</span>' : state.user ? `<button class="avatar" type="button" data-route="profile" aria-label="پروفایل ${esc(name)}">${esc(name.slice(0,1) || 'ب')}</button>` : `<button class="button ghost small" type="button" data-route="auth">ورود</button>`}
+        ${!configured ? '<span class="top-status"><i></i> آماده‌سازی</span>' : state.user ? `<button class="avatar" type="button" data-route="profile" aria-label="پروفایل ${esc(name)}">${esc(name.slice(0,1) || 'ب')}</button>` : state.route === 'auth' ? `<button class="button ghost small" type="button" data-route="home">بازگشت</button>` : `<button class="button ghost small" type="button" data-route="auth">ورود</button>`}
       </div>`;
-    if (!configured) { bottomNav.innerHTML = ''; return; }
+    if (!configured || !state.user) { bottomNav.innerHTML = ''; return; }
     const isOwner = state.profile?.role === 'cargo_owner';
     const nav = [
       ['home','خانه','home'], ['loads','بارها','list'], [isOwner ? 'create-load' : 'offers', isOwner ? 'ثبت بار' : 'پیشنهادها', isOwner ? 'plus' : 'clipboard'], ['shipments','سفارش‌ها','box'], [state.isAdmin ? 'admin' : 'profile', state.isAdmin ? 'مدیریت' : 'حساب', state.isAdmin ? 'shield' : 'user']
@@ -213,15 +221,42 @@
     } catch (error) { if (statsEl) statsEl.innerHTML = `<div class="notice danger wide">${icon('alert')}<p>${esc(humanError(error))}</p></div>`; if (recent) recent.innerHTML = ''; }
   }
 
+  function authShell(content) {
+    return `${networkNotice()}<section class="auth-page"><aside class="auth-aside"><div class="auth-aside-brand"><span class="auth-aside-mark">${icon('truck')}</span><strong>بارینو</strong></div><div class="auth-aside-copy"><span class="auth-overline">حمل‌ونقل، ساده و امن</span><h1>همه مسیرها،<br><em>یک‌جا.</em></h1><p>حساب شما با احراز هویت واقعی و قواعد دسترسی دقیق محافظت می‌شود.</p></div><div class="auth-trust-list"><span>${icon('shield')} داده‌های خصوصی، فقط برای طرف مجاز</span><span>${icon('check')} ورود و بازیابی رمز امن</span></div><div class="auth-aside-orbit" aria-hidden="true"><i></i><b></b><span>${icon('location')}</span></div></aside><section class="auth-card">${content}</section></section>`;
+  }
+  function passwordField(id, name, label, autocomplete, placeholder) {
+    return `<div class="field auth-field"><label for="${id}">${label} <span class="required">*</span></label><div class="password-control"><input id="${id}" name="${name}" class="input" type="password" autocomplete="${autocomplete}" required minlength="8" placeholder="${placeholder}"><button class="password-toggle" type="button" data-toggle-password="${id}" aria-label="نمایش رمز عبور" aria-pressed="false">${icon('eye')}</button></div><span class="field-error"></span></div>`;
+  }
   function renderAuth() {
     if (state.user) { navigate('home'); return; }
     const tab = state.authTab;
     if (tab === 'recovery') { renderNewPassword(); return; }
-    main.innerHTML = `<section class="auth-wrap">${networkNotice()}<div class="auth-hero"><h1>به بارینو خوش آمدید</h1><p>با ایمیل و رمز عبور وارد شوید؛ اطلاعات شما تحت سیاست‌های دسترسی محافظت می‌شود.</p></div><section class="card"><div class="tabs" role="tablist"><button type="button" class="${tab === 'login' ? 'active' : ''}" data-auth-tab="login">ورود</button><button type="button" class="${tab === 'signup' ? 'active' : ''}" data-auth-tab="signup">ثبت‌نام</button></div><div class="divider"></div>${tab === 'signup' ? signupForm() : loginForm()}</section></section>`;
+    if (tab === 'forgot') { renderForgotPassword(); return; }
+    if (tab === 'check-email') { renderCheckEmail(); return; }
+    if (tab === 'recovery-sent') { renderRecoverySent(); return; }
+    const title = tab === 'signup' ? 'ساخت حساب کاربری' : 'خوش آمدید';
+    const text = tab === 'signup' ? 'در کمتر از یک دقیقه به بازار حرفه‌ای حمل بار بپیوندید.' : 'با ایمیل و رمز عبور وارد حساب بارینو شوید.';
+    const tabs = `<div class="auth-tabs" role="tablist" aria-label="ورود یا ثبت‌نام"><button type="button" class="${tab === 'login' ? 'active' : ''}" data-auth-tab="login">ورود</button><button type="button" class="${tab === 'signup' ? 'active' : ''}" data-auth-tab="signup">ساخت حساب</button></div>`;
+    main.innerHTML = authShell(`<div class="auth-card-head"><span class="auth-card-kicker">بارینو</span><h2>${title}</h2><p>${text}</p></div>${tabs}<div class="auth-form-area">${tab === 'signup' ? signupForm() : loginForm()}</div>`);
   }
-  function loginForm() { return `<form id="login-form" class="form-grid" novalidate><div class="field"><label for="login-email">ایمیل <span class="required">*</span></label><input id="login-email" name="email" class="input" type="email" autocomplete="email" inputmode="email" required placeholder="name@example.com"><span class="field-error"></span></div><div class="field"><label for="login-password">رمز عبور <span class="required">*</span></label><input id="login-password" name="password" class="input" type="password" autocomplete="current-password" required minlength="8" placeholder="حداقل ۸ کاراکتر"><span class="field-error"></span></div><button class="text-link" type="button" data-action="forgot-password">رمز عبورم را فراموش کرده‌ام</button><button type="submit" class="button primary full">ورود امن به بارینو</button></form>`; }
-  function signupForm() { return `<form id="signup-form" class="form-grid" novalidate><div><span class="field-label">نوع حساب <span class="required">*</span></span><div class="choice-cards" style="margin-top:7px"><button type="button" class="choice-card ${state.signupRole === 'driver' ? 'selected' : ''}" data-signup-role="driver">${icon('truck')}<strong>راننده</strong><small>بارها را ببینم و پیشنهاد کرایه بدهم</small></button><button type="button" class="choice-card ${state.signupRole === 'cargo_owner' ? 'selected' : ''}" data-signup-role="cargo_owner">${icon('box')}<strong>صاحب بار</strong><small>بار ثبت کنم و راننده انتخاب کنم</small></button></div></div><div class="field"><label for="signup-email">ایمیل <span class="required">*</span></label><input id="signup-email" name="email" class="input" type="email" autocomplete="email" required placeholder="name@example.com"><span class="field-error"></span></div><div class="field"><label for="signup-password">رمز عبور <span class="required">*</span></label><input id="signup-password" name="password" class="input" type="password" autocomplete="new-password" minlength="8" required placeholder="حداقل ۸ کاراکتر"><small>از رمز متفاوت و حداقل ۸ کاراکتری استفاده کنید.</small><span class="field-error"></span></div><button type="submit" class="button primary full">ساخت حساب کاربری</button><p class="muted" style="margin:0;font-size:.72rem">نقش مدیر از این فرم قابل انتخاب نیست و فقط با سازوکار امن پایگاه داده تعیین می‌شود.</p></form>`; }
-  function renderNewPassword() { main.innerHTML = `<section class="auth-wrap"><div class="auth-hero"><h1>رمز عبور جدید</h1><p>رمز جدید و امن خود را وارد کنید.</p></div><form id="new-password-form" class="card form-grid" novalidate><div class="field"><label for="new-password">رمز عبور جدید</label><input class="input" id="new-password" name="password" type="password" autocomplete="new-password" required minlength="8" placeholder="حداقل ۸ کاراکتر"><span class="field-error"></span></div><button type="submit" class="button primary full">ثبت رمز جدید</button></form></section>`; }
+  function loginForm() {
+    return `<form id="login-form" class="form-grid auth-form" novalidate><div class="field auth-field"><label for="login-email">ایمیل <span class="required">*</span></label><div class="field-with-icon">${icon('mail')}<input id="login-email" name="email" class="input" type="email" autocomplete="email" inputmode="email" required placeholder="name@example.com" value="${esc(state.pendingEmail)}"></div><span class="field-error"></span></div>${passwordField('login-password','password','رمز عبور','current-password','رمز عبور خود را وارد کنید')}<div class="auth-form-links"><span>نشست شما روی این دستگاه حفظ می‌شود.</span><button class="text-link" type="button" data-action="forgot-password">فراموشی رمز</button></div><button type="submit" class="button primary full auth-submit">ورود به بارینو <span>←</span></button><p class="auth-legal">ورود فقط با ایمیل و رمز عبور انجام می‌شود؛ ورود پیامکی نمایشی نیست.</p></form>`;
+  }
+  function signupForm() {
+    return `<form id="signup-form" class="form-grid auth-form" novalidate><div class="auth-role-heading"><span>نوع حساب را انتخاب کنید</span><small>بعداً قابل تغییر نیست.</small></div><div class="choice-cards auth-role-cards"><button type="button" class="choice-card ${state.signupRole === 'driver' ? 'selected' : ''}" data-signup-role="driver">${icon('truck')}<strong>راننده</strong><small>مشاهده بار و پیشنهاد کرایه</small></button><button type="button" class="choice-card ${state.signupRole === 'cargo_owner' ? 'selected' : ''}" data-signup-role="cargo_owner">${icon('box')}<strong>صاحب بار</strong><small>ثبت بار و انتخاب راننده</small></button></div><div class="field auth-field"><label for="signup-email">ایمیل <span class="required">*</span></label><div class="field-with-icon">${icon('mail')}<input id="signup-email" name="email" class="input" type="email" autocomplete="email" inputmode="email" required placeholder="name@example.com" value="${esc(state.pendingEmail)}"></div><span class="field-error"></span></div>${passwordField('signup-password','password','رمز عبور','new-password','حداقل ۸ کاراکتر، شامل حرف و عدد')}${passwordField('signup-password-confirmation','password_confirmation','تکرار رمز عبور','new-password','رمز عبور را دوباره وارد کنید')}<div class="auth-password-hint">${icon('shield')} حداقل ۸ کاراکتر و ترکیبی از حرف و عدد انتخاب کنید.</div><button type="submit" class="button primary full auth-submit">ساخت حساب و ارسال ایمیل تأیید <span>←</span></button><p class="auth-legal">نقش مدیر هرگز از این فرم ساخته نمی‌شود و فقط توسط پایگاه داده تعیین می‌گردد.</p></form>`;
+  }
+  function renderForgotPassword() {
+    main.innerHTML = authShell(`<div class="auth-card-head"><button type="button" class="auth-back" data-auth-tab="login">${icon('arrow')} بازگشت به ورود</button><span class="auth-card-kicker">بازیابی امن</span><h2>رمز عبور را بازیابی کنید</h2><p>لینک تغییر رمز را به ایمیل حساب شما می‌فرستیم.</p></div><form id="forgot-password-form" class="form-grid auth-form" novalidate><div class="field auth-field"><label for="forgot-email">ایمیل حساب</label><div class="field-with-icon">${icon('mail')}<input id="forgot-email" name="email" class="input" type="email" autocomplete="email" inputmode="email" required placeholder="name@example.com" value="${esc(state.pendingEmail)}"></div><span class="field-error"></span></div><button type="submit" class="button primary full auth-submit">ارسال لینک بازیابی <span>←</span></button><p class="auth-legal">اگر حسابی با این ایمیل وجود داشته باشد، ایمیل بازیابی ارسال می‌شود.</p></form>`);
+  }
+  function renderCheckEmail() {
+    main.innerHTML = authShell(`<div class="auth-confirm"><div class="auth-confirm-icon">${icon('mail')}</div><span class="auth-card-kicker">یک قدم تا شروع</span><h2>صندوق ایمیل را بررسی کنید</h2><p>لینک تأیید را به <strong dir="ltr">${esc(state.pendingEmail)}</strong> فرستادیم. لینک را باز کنید و سپس وارد بارینو شوید.</p><div class="auth-confirm-tips"><span>${icon('check')} پوشه Spam یا Junk را هم بررسی کنید.</span><span>${icon('check')} لینک فقط برای همین آدرس ایمیل معتبر است.</span></div><button type="button" class="button primary full auth-submit" data-action="resend-confirmation">ارسال دوباره لینک</button><button type="button" class="button ghost full" data-auth-tab="login">بازگشت به ورود</button><button type="button" class="text-link auth-change-email" data-auth-tab="signup">ویرایش آدرس ایمیل</button></div>`);
+  }
+  function renderRecoverySent() {
+    main.innerHTML = authShell(`<div class="auth-confirm"><div class="auth-confirm-icon">${icon('lock')}</div><span class="auth-card-kicker">لینک بازیابی ارسال شد</span><h2>رمز خود را بازنشانی کنید</h2><p>اگر حسابی با <strong dir="ltr">${esc(state.pendingEmail)}</strong> وجود داشته باشد، لینک امن تغییر رمز به آن ارسال شده است.</p><div class="auth-confirm-tips"><span>${icon('check')} پوشه Spam یا Junk را هم بررسی کنید.</span><span>${icon('check')} فقط از آخرین لینک ایمیل استفاده کنید.</span></div><button type="button" class="button primary full auth-submit" data-action="resend-recovery">ارسال دوباره لینک</button><button type="button" class="button ghost full" data-auth-tab="login">بازگشت به ورود</button></div>`);
+  }
+  function renderNewPassword() {
+    main.innerHTML = authShell(`<div class="auth-card-head"><span class="auth-card-kicker">بازیابی امن</span><h2>رمز عبور جدید</h2><p>رمزی تازه انتخاب کنید که قبلاً استفاده نکرده‌اید.</p></div><form id="new-password-form" class="form-grid auth-form" novalidate>${passwordField('new-password','password','رمز عبور جدید','new-password','حداقل ۸ کاراکتر، شامل حرف و عدد')}${passwordField('new-password-confirmation','password_confirmation','تکرار رمز عبور','new-password','رمز عبور را دوباره وارد کنید')}<div class="auth-password-hint">${icon('shield')} از ترکیب حرف، عدد و یک رمز منحصربه‌فرد استفاده کنید.</div><button type="submit" class="button primary full auth-submit">ثبت رمز جدید <span>←</span></button></form>`);
+  }
 
   function renderLoads() {
     main.innerHTML = `${networkNotice()}<div class="page-head"><div><h1>بارهای فعال</h1><p class="subtitle">فیلترها مستقیماً روی داده‌های مجاز پایگاه داده اعمال می‌شوند.</p></div><button class="icon-btn" type="button" data-action="refresh-loads" aria-label="تازه‌سازی">${icon('refresh')}</button></div><section class="card filter-card"><form id="load-filter-form" class="filters"><div class="field"><label for="filter-origin">مبدأ</label><input id="filter-origin" class="input" name="origin" list="iran-cities" placeholder="مثلاً تهران"></div><div class="field"><label for="filter-destination">مقصد</label><input id="filter-destination" class="input" name="destination" list="iran-cities" placeholder="مثلاً مشهد"></div><div class="field"><label for="filter-cargo">نوع بار</label><select id="filter-cargo" name="cargo_type">${cargoOptions()}</select></div><div class="field"><label for="filter-truck">نوع کامیون</label><select id="filter-truck" name="truck_type">${truckOptions()}</select></div><div class="field"><label for="filter-min-fare">حداقل کرایه</label><div class="input-group"><input id="filter-min-fare" class="input" name="min_fare" inputmode="numeric" placeholder="۰"><span class="unit">تومان</span></div></div><div class="field"><label for="filter-max-fare">حداکثر کرایه</label><div class="input-group"><input id="filter-max-fare" class="input" name="max_fare" inputmode="numeric" placeholder="بدون سقف"><span class="unit">تومان</span></div></div><div class="wide action-row"><button class="button secondary full" type="submit">${icon('search')} جست‌وجو و اعمال فیلتر</button></div></form><datalist id="iran-cities">${cityOptions()}</datalist></section><section><div id="loads-result" class="load-list two-col">${skeletons()}</div></section>`;
@@ -384,6 +419,9 @@
   }
   function phoneValid(v) { return /^(?:\+98|0098|0)?9\d{9}$/.test(normalizeDigits(v).replace(/[\s-]/g,'')) ? '' : 'شماره موبایل ایران را درست وارد کنید.'; }
   function positiveNumber(v, message = 'مقدار معتبر و بزرگ‌تر از صفر وارد کنید.') { const n=Number(normalizeDigits(v)); return Number.isFinite(n) && n>0 ? '' : message; }
+  function strongPasswordValid(value) { return /[A-Za-zآ-ی]/.test(value) && /\d/.test(value) ? '' : 'رمز باید دست‌کم یک حرف و یک عدد داشته باشد.'; }
+  function showFieldError(form, name, message) { const input = form.elements[name]; if (!input) return; input.setAttribute('aria-invalid','true'); input.closest('.field')?.querySelector('.field-error')?.replaceChildren(document.createTextNode(message)); input.focus(); }
+  function passwordsMatch(form) { const password = String(form.elements.password?.value || ''); const confirmation = String(form.elements.password_confirmation?.value || ''); if (password === confirmation) return true; showFieldError(form,'password_confirmation','تکرار رمز با رمز عبور یکسان نیست.'); toast('لطفاً تکرار رمز عبور را اصلاح کنید.','error'); return false; }
 
   async function onSubmit(event) {
     const form = event.target;
@@ -394,7 +432,9 @@
       const button=$('[type="submit"]',form); setBusy(button,true);
       try {
         const f=new FormData(form);
-        const {data,error}=await state.client.auth.signInWithPassword({email:f.get('email').trim(),password:f.get('password')});
+        const email = f.get('email').trim().toLowerCase();
+        state.pendingEmail = email;
+        const {data,error}=await state.client.auth.signInWithPassword({email,password:f.get('password')});
         if(error) throw error;
         if (!emailIsConfirmed(data.user)) {
           await state.client.auth.signOut({ scope: 'local' });
@@ -405,12 +445,13 @@
       return;
     }
     if (form.id === 'signup-form') {
-      if(!formValid(form)) return;
+      if(!formValid(form,{password:strongPasswordValid}) || !passwordsMatch(form)) return;
       const button=$('[type="submit"]',form); setBusy(button,true);
       try {
         const f=new FormData(form);
+        const email=f.get('email').trim().toLowerCase();
         const {data,error}=await state.client.auth.signUp({
-          email:f.get('email').trim(),
+          email,
           password:f.get('password'),
           options:{ emailRedirectTo: authRedirectUrl(), data:{signup_role:state.signupRole} }
         });
@@ -420,14 +461,25 @@
           await state.client.auth.signOut({ scope: 'local' });
           throw new Error('EMAIL_CONFIRMATION_NOT_ENFORCED');
         }
-        toast('حساب ساخته شد. لینک تأیید را از ایمیل باز کنید؛ سپس وارد شوید.','success');
-        state.authTab='login';
+        state.pendingEmail=email;
+        state.authTab='check-email';
         renderAuth();
+        toast('ایمیل تأیید ارسال شد. صندوق ورودی خود را بررسی کنید.','success');
       } catch(e){toast(humanError(e),'error');setBusy(button,false);}
       return;
     }
+    if (form.id === 'forgot-password-form') { await sendRecovery(form); return; }
     if (form.id === 'new-password-form') {
-      if(!formValid(form))return; const button=$('[type="submit"]',form); setBusy(button,true); try{const {error}=await state.client.auth.updateUser({password:new FormData(form).get('password')});if(error)throw error;toast('رمز عبور با موفقیت تغییر کرد.','success');state.authTab='login';navigate('home');}catch(e){toast(humanError(e),'error');setBusy(button,false);}return;
+      if(!formValid(form,{password:strongPasswordValid}) || !passwordsMatch(form))return;
+      const button=$('[type="submit"]',form); setBusy(button,true);
+      try{
+        const {error}=await state.client.auth.updateUser({password:new FormData(form).get('password')});
+        if(error)throw error;
+        toast('رمز عبور با موفقیت تغییر کرد.','success');
+        state.authTab='login';
+        navigate('home');
+      }catch(e){toast(humanError(e),'error');setBusy(button,false);}
+      return;
     }
     if(form.id === 'profile-form') { await saveProfile(form); return; }
     if(form.id === 'create-load-form') { await createLoad(form); return; }
@@ -458,6 +510,7 @@
     if(target.dataset.route){ event.preventDefault();navigate(target.dataset.route);return; }
     if(target.dataset.authTab){state.authTab=target.dataset.authTab;renderAuth();return;}
     if(target.dataset.signupRole){state.signupRole=target.dataset.signupRole;renderAuth();return;}
+    if(target.dataset.togglePassword){const input=document.getElementById(target.dataset.togglePassword);if(!input)return;const show=input.type==='password';input.type=show?'text':'password';target.setAttribute('aria-pressed',String(show));target.setAttribute('aria-label',show?'پنهان‌کردن رمز عبور':'نمایش رمز عبور');target.innerHTML=icon(show?'eyeOff':'eye');return;}
     if(target.dataset.closeModal !== undefined || (target.dataset.closeModal!==undefined && event.target.classList.contains('modal-backdrop'))){closeModal();return;}
     if(target.classList.contains('modal-backdrop')){closeModal();return;}
     if(target.dataset.openOffer){closeModal();openOffer(target.dataset.openOffer);return;}
@@ -471,7 +524,9 @@
     if(target.dataset.action==='refresh-loads'){loadLoads();return;}
     if(target.dataset.action==='refresh-offers'){loadOffers();return;}
     if(target.dataset.action==='refresh-shipments'){loadShipments();return;}
-    if(target.dataset.action==='forgot-password'){await resetPassword();return;}
+    if(target.dataset.action==='forgot-password'){state.authTab='forgot';renderAuth();return;}
+    if(target.dataset.action==='resend-confirmation'){await resendConfirmation(target);return;}
+    if(target.dataset.action==='resend-recovery'){await resendRecovery(target);return;}
     if(target.dataset.action==='signout'){await signOut();return;}
     if(target.dataset.cancelLoad){await cancelLoad(target.dataset.cancelLoad);return;}
     if(target.dataset.acceptOffer){await acceptOffer(target.dataset.acceptOffer);return;}
@@ -482,7 +537,40 @@
   });
   document.addEventListener('submit', onSubmit);
   document.addEventListener('keydown', e => { if(e.key==='Escape')closeModal(); });
-  async function resetPassword(){const email=state.user?.email || $('#login-email')?.value?.trim();if(!email || !/^\S+@\S+\.\S+$/.test(email)){toast('ایمیل خود را در فرم ورود وارد کنید.','error');return;}try{const {error}=await state.client.auth.resetPasswordForEmail(email,{redirectTo:authRedirectUrl()});if(error)throw error;toast('لینک بازیابی رمز عبور به ایمیل شما ارسال شد.','success');}catch(e){toast(humanError(e),'error');}}
+  async function sendRecovery(form){
+    if(!formValid(form))return;
+    const button=$('[type="submit"]',form);setBusy(button,true);
+    try{
+      const email=new FormData(form).get('email').trim().toLowerCase();
+      const {error}=await state.client.auth.resetPasswordForEmail(email,{redirectTo:authRedirectUrl()});
+      if(error)throw error;
+      state.pendingEmail=email;
+      state.authTab='recovery-sent';
+      renderAuth();
+      toast('اگر حسابی با این ایمیل وجود داشته باشد، لینک بازیابی ارسال شد.','success');
+    }catch(e){toast(humanError(e),'error');setBusy(button,false);}
+  }
+  async function resendRecovery(button){
+    if(!state.pendingEmail){state.authTab='forgot';renderAuth();return;}
+    setBusy(button,true);
+    try{
+      const {error}=await state.client.auth.resetPasswordForEmail(state.pendingEmail,{redirectTo:authRedirectUrl()});
+      if(error)throw error;
+      toast('لینک بازیابی دوباره ارسال شد.','success');
+      setBusy(button,false);
+    }catch(e){toast(humanError(e),'error');setBusy(button,false);}
+  }
+  async function resendConfirmation(button){
+    const email=state.pendingEmail;
+    if(!email){state.authTab='signup';renderAuth();toast('ابتدا ایمیل خود را در فرم ثبت‌نام وارد کنید.','info');return;}
+    setBusy(button,true);
+    try{
+      const {error}=await state.client.auth.resend({type:'signup',email,options:{emailRedirectTo:authRedirectUrl()}});
+      if(error)throw error;
+      toast('لینک تأیید دوباره ارسال شد.','success');
+      setBusy(button,false);
+    }catch(e){toast(humanError(e),'error');setBusy(button,false);}
+  }
   async function signOut(){try{const {error}=await state.client.auth.signOut();if(error)throw error;toast('از حساب خارج شدید.','success');navigate('home');}catch(e){toast(humanError(e),'error');}}
   async function cancelLoad(id){if(!confirm('از لغو این بار مطمئن هستید؟ پس از توافق امکان لغو از این مسیر وجود ندارد.'))return;try{const {error}=await state.client.from('loads').update({status:'cancelled'}).eq('id',id);if(error)throw error;closeModal();toast('بار لغو شد.','success');render();}catch(e){toast(humanError(e),'error');}}
   async function acceptOffer(id){if(!confirm('با پذیرش این پیشنهاد، سفارش حمل ایجاد و سایر پیشنهادها مختومه می‌شوند. ادامه می‌دهید؟'))return;try{const {error}=await state.client.rpc('accept_freight_offer',{p_offer_id:id});if(error)throw error;toast('پیشنهاد پذیرفته و سفارش حمل ایجاد شد.','success');navigate('shipments');}catch(e){toast(humanError(e),'error');}}
