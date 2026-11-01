@@ -1,0 +1,30 @@
+name: Deploy Barino Supabase schema
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-schema:
+    name: Apply database migrations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply Barino schema securely
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Missing required repository secret: SUPABASE_DB_URL"
+            exit 1
+          fi
+          supabase db push --db-url "$SUPABASE_DB_URL"

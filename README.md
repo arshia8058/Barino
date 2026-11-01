@@ -77,13 +77,25 @@ README.md                     راهنمای راه‌اندازی و انتشا
 
 1. در Supabase یک پروژه جدید بسازید و منتظر آماده‌شدن آن بمانید.
 2. از منوی **SQL Editor** گزینه **New query** را بزنید.
-3. کل محتوای [`supabase_schema.sql`](./supabase_schema.sql) را کپی، Paste و **Run** کنید.
+3. کل محتوای [`supabase_schema.sql`](./supabase_schema.sql) را کپی، Paste و **Run** کنید. اگر با مرورگر موبایل کار می‌کنید و clipboard ظرفیت کل فایل را ندارد، فایل‌های پوشه [`supabase/`](./supabase/) را به‌ترتیب شماره از `01` تا `05` جداگانه Paste و Run کنید؛ هر مرحله باید موفق شود و سپس مرحله بعد را اجرا کنید.
 4. در **Authentication → Providers → Email**، Email provider را فعال نگه دارید. برای تولید واقعی، تأیید ایمیل را نیز فعال کنید.
 5. در **Authentication → URL Configuration** این نشانی‌ها را وارد کنید:
    - **Site URL**: آدرس نهایی GitHub Pages شما، مانند `https://USERNAME.github.io/REPOSITORY/`
    - **Redirect URLs**: همان آدرس، و در صورت نیاز `https://USERNAME.github.io/REPOSITORY/#auth`
 
 مسیر مخزن در URL مهم است؛ به همین علت برنامه از مسیرهای نسبی استفاده می‌کند و لینک بازیابی رمز را از URL فعلی تولید می‌کند.
+
+### راه جایگزین موبایل: اجرای Schema با دکمه GitHub Actions
+
+اگر SQL Editor موبایل اجازه Paste نمی‌دهد، migration آماده در `supabase/migrations/20261101180000_barino_initial_schema.sql` و workflow امن در `.github/workflows/deploy-supabase-schema.yml` قرار دارد. به جای کپی SQL:
+
+1. در Supabase، از **Connect** یا **Project Settings → Database → Connection string → URI**، رشته اتصال PostgreSQL را بردارید و رمز دیتابیس خود را جایگزین `[YOUR-PASSWORD]` کنید. این رشته محرمانه است.
+2. در GitHub مخزن، به **Settings → Secrets and variables → Actions → New repository secret** بروید.
+3. نام secret را دقیقاً `SUPABASE_DB_URL` بگذارید و URI را فقط در همان Secret وارد کنید. آن را در chat، کد یا فایل عمومی قرار ندهید.
+4. پس از ادغام تغییرات در `main`، به تب **Actions** بروید، workflow **Deploy Barino Supabase schema** را انتخاب کنید، **Run workflow** را بزنید و branch `main` را انتخاب کنید.
+5. پس از سبزشدن workflow، جدول‌ها، RLS و RPCهای بارینو در پروژه ساخته شده‌اند.
+
+این workflow فقط دستی اجرا می‌شود و URI محرمانه در GitHub Actions masked می‌ماند.
 
 ### ۲) قرار دادن پیکربندی عمومی کلاینت
 
