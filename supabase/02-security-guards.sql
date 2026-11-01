@@ -1,4 +1,3 @@
--- مانع دست‌کاری role، مسدودسازی و روند وضعیت، حتی با درخواست HTTP مستقیم می‌شود.
 create or replace function public.guard_profile_update()
 returns trigger
 language plpgsql

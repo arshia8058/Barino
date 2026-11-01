@@ -134,12 +134,26 @@ as $$
   select exists (select 1 from public.app_admins a where a.user_id = auth.uid());
 $$;
 
+-- اعتبار تأیید ایمیل را مستقیماً از auth.users می‌خواند؛ به claim قابل جعل JWT تکیه نمی‌کند.
+create or replace function public.is_confirmed_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = auth, public
+as $$
+  select exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.email_confirmed_at is not null
+  );
+$$;
+
 -- یک public profile امن برای مقایسه پیشنهادها؛ شماره، پلاک و آدرس در آن نیست.
 create or replace view public.driver_public_profiles
 with (security_invoker = false) as
   select id, display_name, truck_type, truck_model
   from public.profiles
-  where role = 'driver' and is_blocked = false;
+  where role = 'driver' and is_blocked = false and public.is_confirmed_user();
 
 -- هنگام ثبت‌نام، نقش فقط راننده یا صاحب بار است. مدیر هرگز از user metadata ساخته نمی‌شود.
 create or replace function public.handle_new_user()
@@ -175,3 +189,4 @@ begin
 end;
 $$;
 
+-- مانع دست‌کاری role، مسدودسازی و روند وضعیت، حتی با درخواست HTTP مستقیم می‌شود.
