@@ -10,6 +10,9 @@ jobs:
   deploy-schema:
     name: Apply database migrations
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_PROJECT_REF: mnovxlrofiezaplqrunm
+      SUPABASE_POOLER_HOST: aws-0-eu-west-1.pooler.supabase.com
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,10 +24,13 @@ jobs:
 
       - name: Apply Barino schema securely
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "Missing required repository secret: SUPABASE_DB_URL"
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "Missing required repository secret: SUPABASE_DB_PASSWORD"
             exit 1
           fi
-          supabase db push --db-url "$SUPABASE_DB_URL"
+          # URL-encode the password in the runner so it never appears in the repository or logs.
+          DB_PASSWORD_ENCODED="$(node -e 'process.stdout.write(encodeURIComponent(process.env.SUPABASE_DB_PASSWORD))')"
+          DB_URL="postgresql://postgres.${SUPABASE_PROJECT_REF}:${DB_PASSWORD_ENCODED}@${SUPABASE_POOLER_HOST}:6543/postgres"
+          supabase db push --db-url "$DB_URL"
