@@ -77,7 +77,7 @@ README.md                     راهنمای راه‌اندازی و انتشا
 
 1. در Supabase یک پروژه جدید بسازید و منتظر آماده‌شدن آن بمانید.
 2. از منوی **SQL Editor** گزینه **New query** را بزنید.
-3. کل محتوای [`supabase_schema.sql`](./supabase_schema.sql) را کپی، Paste و **Run** کنید.
+3. کل محتوای [`supabase_schema.sql`](./supabase_schema.sql) را کپی، Paste و **Run** کنید. اگر با مرورگر موبایل کار می‌کنید و clipboard ظرفیت کل فایل را ندارد، فایل‌های پوشه [`supabase/`](./supabase/) را به‌ترتیب شماره از `01` تا `05` جداگانه Paste و Run کنید؛ هر مرحله باید موفق شود و سپس مرحله بعد را اجرا کنید.
 4. در **Authentication → Providers → Email**، Email provider را فعال نگه دارید. برای تولید واقعی، تأیید ایمیل را نیز فعال کنید.
 5. در **Authentication → URL Configuration** این نشانی‌ها را وارد کنید:
    - **Site URL**: آدرس نهایی GitHub Pages شما، مانند `https://USERNAME.github.io/REPOSITORY/`
