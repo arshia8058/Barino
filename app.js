@@ -12,7 +12,7 @@
   const CITY_LIST = ['تهران','کرج','قزوین','قم','سمنان','زنجان','رشت','ساری','گرگان','اردبیل','تبریز','ارومیه','سنندج','همدان','اراک','اصفهان','یزد','شیراز','بوشهر','بندرعباس','کیش','اهواز','خرم‌آباد','کرمانشاه','ایلام','شهرکرد','یاسوج','کرمان','زاهدان','بیرجند','مشهد','بجنورد','اردبیل'];
   const TRUCKS = ['نیسان بار','خاور','تک','جفت','تریلی کفی','تریلی چادری','تریلی یخچالی','تانکر','کمپرسی','بوژی'];
   const CARGO_TYPES = ['عمومی','مصالح ساختمانی','کشاورزی','مواد غذایی','یخچالی','صنعتی','مایعات','اثاثیه','خطرناک'];
-  const state = { client: null, session: null, user: null, profile: null, isAdmin: false, route: 'home', authTab: 'login', signupRole: 'driver', pendingEmail: '', online: navigator.onLine, initialized: false };
+  const state = { client: null, session: null, user: null, profile: null, isAdmin: false, route: 'home', authTab: 'login', signupRole: 'driver', pendingEmail: '', emailCooldownUntil: 0, emailCooldownTimer: null, online: navigator.onLine, initialized: false };
 
   const icons = {
     truck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h11v11H3z"/><path d="M14 8h4l3 3v5h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
@@ -74,6 +74,19 @@
     return `${window.location.origin}${path}#auth`;
   }
   function emailIsConfirmed(user) { return Boolean(user?.email_confirmed_at); }
+  function emailCooldownSeconds() { return Math.max(0, Math.ceil((state.emailCooldownUntil - Date.now()) / 1000)); }
+  function beginEmailCooldown(seconds = 60) {
+    state.emailCooldownUntil = Date.now() + (seconds * 1000);
+    window.clearTimeout(state.emailCooldownTimer);
+    state.emailCooldownTimer = window.setTimeout(() => {
+      state.emailCooldownUntil = 0;
+      if (state.authTab === 'check-email' || state.authTab === 'recovery-sent') renderAuth();
+    }, seconds * 1000);
+  }
+  function resendButton(action, label) {
+    const seconds = emailCooldownSeconds();
+    return `<button type="button" class="button primary full auth-submit" data-action="${action}" ${seconds ? 'disabled' : ''}>${seconds ? `ارسال دوباره تا ${faNumber(seconds)} ثانیه دیگر` : label}</button>`;
+  }
   function profileReady() { return !!(state.profile?.display_name && state.profile?.phone && (state.profile.role !== 'driver' || state.profile.truck_type)); }
   function cityOptions() { return CITY_LIST.map(city => `<option value="${esc(city)}"></option>`).join(''); }
   function truckOptions(selected = '') { return `<option value="">انتخاب کنید</option>${TRUCKS.map(x => `<option value="${esc(x)}" ${x === selected ? 'selected' : ''}>${esc(x)}</option>`).join('')}`; }
@@ -249,10 +262,10 @@
     main.innerHTML = authShell(`<div class="auth-card-head"><button type="button" class="auth-back" data-auth-tab="login">${icon('arrow')} بازگشت به ورود</button><span class="auth-card-kicker">بازیابی امن</span><h2>رمز عبور را بازیابی کنید</h2><p>لینک تغییر رمز را به ایمیل حساب شما می‌فرستیم.</p></div><form id="forgot-password-form" class="form-grid auth-form" novalidate><div class="field auth-field"><label for="forgot-email">ایمیل حساب</label><div class="field-with-icon">${icon('mail')}<input id="forgot-email" name="email" class="input" type="email" autocomplete="email" inputmode="email" required placeholder="name@example.com" value="${esc(state.pendingEmail)}"></div><span class="field-error"></span></div><button type="submit" class="button primary full auth-submit">ارسال لینک بازیابی <span>←</span></button><p class="auth-legal">اگر حسابی با این ایمیل وجود داشته باشد، ایمیل بازیابی ارسال می‌شود.</p></form>`);
   }
   function renderCheckEmail() {
-    main.innerHTML = authShell(`<div class="auth-confirm"><div class="auth-confirm-icon">${icon('mail')}</div><span class="auth-card-kicker">یک قدم تا شروع</span><h2>صندوق ایمیل را بررسی کنید</h2><p>لینک تأیید را به <strong dir="ltr">${esc(state.pendingEmail)}</strong> فرستادیم. لینک را باز کنید و سپس وارد بارینو شوید.</p><div class="auth-confirm-tips"><span>${icon('check')} پوشه Spam یا Junk را هم بررسی کنید.</span><span>${icon('check')} لینک فقط برای همین آدرس ایمیل معتبر است.</span></div><button type="button" class="button primary full auth-submit" data-action="resend-confirmation">ارسال دوباره لینک</button><button type="button" class="button ghost full" data-auth-tab="login">بازگشت به ورود</button><button type="button" class="text-link auth-change-email" data-auth-tab="signup">ویرایش آدرس ایمیل</button></div>`);
+    main.innerHTML = authShell(`<div class="auth-confirm"><div class="auth-confirm-icon">${icon('mail')}</div><span class="auth-card-kicker">یک قدم تا شروع</span><h2>صندوق ایمیل را بررسی کنید</h2><p>لینک تأیید را به <strong dir="ltr">${esc(state.pendingEmail)}</strong> فرستادیم. لینک را باز کنید و سپس وارد بارینو شوید.</p><div class="auth-confirm-tips"><span>${icon('check')} پوشه Spam یا Junk را هم بررسی کنید.</span><span>${icon('check')} لینک فقط برای همین آدرس ایمیل معتبر است.</span></div>${resendButton('resend-confirmation','ارسال دوباره لینک تأیید')}<button type="button" class="button ghost full" data-auth-tab="login">بازگشت به ورود</button><button type="button" class="text-link auth-change-email" data-auth-tab="signup">ویرایش آدرس ایمیل</button></div>`);
   }
   function renderRecoverySent() {
-    main.innerHTML = authShell(`<div class="auth-confirm"><div class="auth-confirm-icon">${icon('lock')}</div><span class="auth-card-kicker">لینک بازیابی ارسال شد</span><h2>رمز خود را بازنشانی کنید</h2><p>اگر حسابی با <strong dir="ltr">${esc(state.pendingEmail)}</strong> وجود داشته باشد، لینک امن تغییر رمز به آن ارسال شده است.</p><div class="auth-confirm-tips"><span>${icon('check')} پوشه Spam یا Junk را هم بررسی کنید.</span><span>${icon('check')} فقط از آخرین لینک ایمیل استفاده کنید.</span></div><button type="button" class="button primary full auth-submit" data-action="resend-recovery">ارسال دوباره لینک</button><button type="button" class="button ghost full" data-auth-tab="login">بازگشت به ورود</button></div>`);
+    main.innerHTML = authShell(`<div class="auth-confirm"><div class="auth-confirm-icon">${icon('lock')}</div><span class="auth-card-kicker">لینک بازیابی ارسال شد</span><h2>رمز خود را بازنشانی کنید</h2><p>اگر حسابی با <strong dir="ltr">${esc(state.pendingEmail)}</strong> وجود داشته باشد، لینک امن تغییر رمز به آن ارسال شده است.</p><div class="auth-confirm-tips"><span>${icon('check')} پوشه Spam یا Junk را هم بررسی کنید.</span><span>${icon('check')} فقط از آخرین لینک ایمیل استفاده کنید.</span></div>${resendButton('resend-recovery','ارسال دوباره لینک بازیابی')}<button type="button" class="button ghost full" data-auth-tab="login">بازگشت به ورود</button></div>`);
   }
   function renderNewPassword() {
     main.innerHTML = authShell(`<div class="auth-card-head"><span class="auth-card-kicker">بازیابی امن</span><h2>رمز عبور جدید</h2><p>رمزی تازه انتخاب کنید که قبلاً استفاده نکرده‌اید.</p></div><form id="new-password-form" class="form-grid auth-form" novalidate>${passwordField('new-password','password','رمز عبور جدید','new-password','حداقل ۸ کاراکتر، شامل حرف و عدد')}${passwordField('new-password-confirmation','password_confirmation','تکرار رمز عبور','new-password','رمز عبور را دوباره وارد کنید')}<div class="auth-password-hint">${icon('shield')} از ترکیب حرف، عدد و یک رمز منحصربه‌فرد استفاده کنید.</div><button type="submit" class="button primary full auth-submit">ثبت رمز جدید <span>←</span></button></form>`);
@@ -462,6 +475,7 @@
           throw new Error('EMAIL_CONFIRMATION_NOT_ENFORCED');
         }
         state.pendingEmail=email;
+        beginEmailCooldown();
         state.authTab='check-email';
         renderAuth();
         toast('ایمیل تأیید ارسال شد. صندوق ورودی خود را بررسی کنید.','success');
@@ -545,6 +559,7 @@
       const {error}=await state.client.auth.resetPasswordForEmail(email,{redirectTo:authRedirectUrl()});
       if(error)throw error;
       state.pendingEmail=email;
+      beginEmailCooldown();
       state.authTab='recovery-sent';
       renderAuth();
       toast('اگر حسابی با این ایمیل وجود داشته باشد، لینک بازیابی ارسال شد.','success');
@@ -552,23 +567,27 @@
   }
   async function resendRecovery(button){
     if(!state.pendingEmail){state.authTab='forgot';renderAuth();return;}
+    const seconds=emailCooldownSeconds(); if(seconds){toast(`برای ارسال دوباره ${faNumber(seconds)} ثانیه صبر کنید.`,'info');return;}
     setBusy(button,true);
     try{
       const {error}=await state.client.auth.resetPasswordForEmail(state.pendingEmail,{redirectTo:authRedirectUrl()});
       if(error)throw error;
+      beginEmailCooldown();
+      renderAuth();
       toast('لینک بازیابی دوباره ارسال شد.','success');
-      setBusy(button,false);
     }catch(e){toast(humanError(e),'error');setBusy(button,false);}
   }
   async function resendConfirmation(button){
     const email=state.pendingEmail;
     if(!email){state.authTab='signup';renderAuth();toast('ابتدا ایمیل خود را در فرم ثبت‌نام وارد کنید.','info');return;}
+    const seconds=emailCooldownSeconds(); if(seconds){toast(`برای ارسال دوباره ${faNumber(seconds)} ثانیه صبر کنید.`,'info');return;}
     setBusy(button,true);
     try{
       const {error}=await state.client.auth.resend({type:'signup',email,options:{emailRedirectTo:authRedirectUrl()}});
       if(error)throw error;
+      beginEmailCooldown();
+      renderAuth();
       toast('لینک تأیید دوباره ارسال شد.','success');
-      setBusy(button,false);
     }catch(e){toast(humanError(e),'error');setBusy(button,false);}
   }
   async function signOut(){try{const {error}=await state.client.auth.signOut();if(error)throw error;toast('از حساب خارج شدید.','success');navigate('home');}catch(e){toast(humanError(e),'error');}}
