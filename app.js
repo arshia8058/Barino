@@ -47,7 +47,8 @@
   function humanError(error) {
     const raw = String(error?.message || error || '');
     if (/Invalid login credentials/i.test(raw)) return 'ایمیل یا رمز عبور درست نیست.';
-    if (/Email not confirmed/i.test(raw)) return 'ابتدا ایمیل خود را تأیید کنید.';
+    if (/Email not confirmed|EMAIL_VERIFICATION_REQUIRED/i.test(raw)) return 'ابتدا ایمیل خود را تأیید کنید؛ سپس وارد شوید.';
+    if (/EMAIL_CONFIRMATION_NOT_ENFORCED/i.test(raw)) return 'تأیید ایمیل در Supabase فعال نشده است. در Authentication → Sign In / Providers آن را فعال و ذخیره کنید.';
     if (/User already registered/i.test(raw)) return 'این ایمیل قبلاً ثبت شده است.';
     if (/duplicate|unique/i.test(raw)) return 'این مورد قبلاً ثبت شده است.';
     if (/network|fetch/i.test(raw)) return 'ارتباط با اینترنت یا سرور برقرار نشد. دوباره تلاش کنید.';
@@ -59,6 +60,12 @@
   function statusLabel(status) { return ({ published:'منتشرشده', receiving_offers:'در حال دریافت پیشنهاد', agreed:'توافق‌شده', awaiting_pickup:'در انتظار بارگیری', in_transit:'در حال حمل', delivered:'تحویل‌شده', cancelled:'لغوشده', submitted:'ارسال‌شده', accepted:'پذیرفته‌شده', rejected:'ردشده', declined:'مختومه' })[status] || status || '—'; }
   function roleLabel(role) { return role === 'driver' ? 'راننده' : 'صاحب بار'; }
   function isConfigured() { const c = window.BARINO_SUPABASE_CONFIG; return !!(c && /^https:\/\//.test(c.url || '') && c.anonKey && !String(c.url).includes('YOUR_') && !String(c.anonKey).includes('YOUR_')); }
+  // مسیر redirect را از URL واقعی مرورگر می‌سازیم تا GitHub Pages زیرشاخهٔ /rimou/ را از دست ندهد.
+  function authRedirectUrl() {
+    const path = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
+    return `${window.location.origin}${path}#auth`;
+  }
+  function emailIsConfirmed(user) { return Boolean(user?.email_confirmed_at); }
   function profileReady() { return !!(state.profile?.display_name && state.profile?.phone && (state.profile.role !== 'driver' || state.profile.truck_type)); }
   function cityOptions() { return CITY_LIST.map(city => `<option value="${esc(city)}"></option>`).join(''); }
   function truckOptions(selected = '') { return `<option value="">انتخاب کنید</option>${TRUCKS.map(x => `<option value="${esc(x)}" ${x === selected ? 'selected' : ''}>${esc(x)}</option>`).join('')}`; }
@@ -108,6 +115,13 @@
   }
 
   async function setSession(session) {
+    // دفاع دوم در کلاینت: نشست ایمیل تأییدنشده هرگز وارد رابط کاربری نمی‌شود.
+    // RLS و RPCهای دیتابیس نیز همان شرط را مستقل از JavaScript اعمال می‌کنند.
+    if (session?.user && !emailIsConfirmed(session.user)) {
+      await state.client?.auth.signOut({ scope: 'local' });
+      session = null;
+      toast('برای ورود ابتدا ایمیل خود را تأیید کنید.', 'info');
+    }
     state.session = session || null;
     state.user = session?.user || null;
     state.profile = null;
@@ -376,10 +390,41 @@
     if (!(form instanceof HTMLFormElement)) return;
     event.preventDefault();
     if (form.id === 'login-form') {
-      if(!formValid(form)) return; const button=$('[type="submit"]',form); setBusy(button,true); try { const f=new FormData(form); const {error}=await state.client.auth.signInWithPassword({email:f.get('email').trim(),password:f.get('password')}); if(error) throw error; toast('با موفقیت وارد شدید.','success'); } catch(e){toast(humanError(e),'error');setBusy(button,false);} return;
+      if(!formValid(form)) return;
+      const button=$('[type="submit"]',form); setBusy(button,true);
+      try {
+        const f=new FormData(form);
+        const {data,error}=await state.client.auth.signInWithPassword({email:f.get('email').trim(),password:f.get('password')});
+        if(error) throw error;
+        if (!emailIsConfirmed(data.user)) {
+          await state.client.auth.signOut({ scope: 'local' });
+          throw new Error('EMAIL_VERIFICATION_REQUIRED');
+        }
+        toast('با موفقیت وارد شدید.','success');
+      } catch(e){toast(humanError(e),'error');setBusy(button,false);}
+      return;
     }
     if (form.id === 'signup-form') {
-      if(!formValid(form)) return; const button=$('[type="submit"]',form); setBusy(button,true); try { const f=new FormData(form); const {data,error}=await state.client.auth.signUp({email:f.get('email').trim(),password:f.get('password'),options:{data:{signup_role:state.signupRole}}}); if(error)throw error; if(!data.session) toast('حساب ساخته شد؛ لینک تأیید ایمیل را باز کنید، سپس وارد شوید.','success'); else toast('حساب شما ساخته شد. پروفایل را کامل کنید.','success'); setBusy(button,false); } catch(e){toast(humanError(e),'error');setBusy(button,false);} return;
+      if(!formValid(form)) return;
+      const button=$('[type="submit"]',form); setBusy(button,true);
+      try {
+        const f=new FormData(form);
+        const {data,error}=await state.client.auth.signUp({
+          email:f.get('email').trim(),
+          password:f.get('password'),
+          options:{ emailRedirectTo: authRedirectUrl(), data:{signup_role:state.signupRole} }
+        });
+        if(error) throw error;
+        // با Confirm email صحیح، Supabase نباید session برگرداند. این بررسی از پیکربندی ناامن جلوگیری می‌کند.
+        if (data.session) {
+          await state.client.auth.signOut({ scope: 'local' });
+          throw new Error('EMAIL_CONFIRMATION_NOT_ENFORCED');
+        }
+        toast('حساب ساخته شد. لینک تأیید را از ایمیل باز کنید؛ سپس وارد شوید.','success');
+        state.authTab='login';
+        renderAuth();
+      } catch(e){toast(humanError(e),'error');setBusy(button,false);}
+      return;
     }
     if (form.id === 'new-password-form') {
       if(!formValid(form))return; const button=$('[type="submit"]',form); setBusy(button,true); try{const {error}=await state.client.auth.updateUser({password:new FormData(form).get('password')});if(error)throw error;toast('رمز عبور با موفقیت تغییر کرد.','success');state.authTab='login';navigate('home');}catch(e){toast(humanError(e),'error');setBusy(button,false);}return;
@@ -437,7 +482,7 @@
   });
   document.addEventListener('submit', onSubmit);
   document.addEventListener('keydown', e => { if(e.key==='Escape')closeModal(); });
-  async function resetPassword(){const email=state.user?.email || $('#login-email')?.value?.trim();if(!email || !/^\S+@\S+\.\S+$/.test(email)){toast('ایمیل خود را در فرم ورود وارد کنید.','error');return;}try{const {error}=await state.client.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]+'#auth'});if(error)throw error;toast('لینک بازیابی رمز عبور به ایمیل شما ارسال شد.','success');}catch(e){toast(humanError(e),'error');}}
+  async function resetPassword(){const email=state.user?.email || $('#login-email')?.value?.trim();if(!email || !/^\S+@\S+\.\S+$/.test(email)){toast('ایمیل خود را در فرم ورود وارد کنید.','error');return;}try{const {error}=await state.client.auth.resetPasswordForEmail(email,{redirectTo:authRedirectUrl()});if(error)throw error;toast('لینک بازیابی رمز عبور به ایمیل شما ارسال شد.','success');}catch(e){toast(humanError(e),'error');}}
   async function signOut(){try{const {error}=await state.client.auth.signOut();if(error)throw error;toast('از حساب خارج شدید.','success');navigate('home');}catch(e){toast(humanError(e),'error');}}
   async function cancelLoad(id){if(!confirm('از لغو این بار مطمئن هستید؟ پس از توافق امکان لغو از این مسیر وجود ندارد.'))return;try{const {error}=await state.client.from('loads').update({status:'cancelled'}).eq('id',id);if(error)throw error;closeModal();toast('بار لغو شد.','success');render();}catch(e){toast(humanError(e),'error');}}
   async function acceptOffer(id){if(!confirm('با پذیرش این پیشنهاد، سفارش حمل ایجاد و سایر پیشنهادها مختومه می‌شوند. ادامه می‌دهید؟'))return;try{const {error}=await state.client.rpc('accept_freight_offer',{p_offer_id:id});if(error)throw error;toast('پیشنهاد پذیرفته و سفارش حمل ایجاد شد.','success');navigate('shipments');}catch(e){toast(humanError(e),'error');}}

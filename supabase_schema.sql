@@ -134,12 +134,26 @@ as $$
   select exists (select 1 from public.app_admins a where a.user_id = auth.uid());
 $$;
 
+-- اعتبار تأیید ایمیل را مستقیماً از auth.users می‌خواند؛ به claim قابل جعل JWT تکیه نمی‌کند.
+create or replace function public.is_confirmed_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = auth, public
+as $$
+  select exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.email_confirmed_at is not null
+  );
+$$;
+
 -- یک public profile امن برای مقایسه پیشنهادها؛ شماره، پلاک و آدرس در آن نیست.
 create or replace view public.driver_public_profiles
 with (security_invoker = false) as
   select id, display_name, truck_type, truck_model
   from public.profiles
-  where role = 'driver' and is_blocked = false;
+  where role = 'driver' and is_blocked = false and public.is_confirmed_user();
 
 -- هنگام ثبت‌نام، نقش فقط راننده یا صاحب بار است. مدیر هرگز از user metadata ساخته نمی‌شود.
 create or replace function public.handle_new_user()
@@ -312,69 +326,73 @@ alter table public.reports enable row level security;
 -- اجرای دوباره فایل policyهای هم‌نام را پاک می‌کند.
 drop policy if exists profiles_select_authorized on public.profiles;
 create policy profiles_select_authorized on public.profiles for select to authenticated using (
-  id = auth.uid() or public.is_admin() or exists (
+  public.is_confirmed_user() and (id = auth.uid() or public.is_admin() or exists (
     select 1 from public.shipments s
     where (s.owner_id = auth.uid() and s.driver_id = profiles.id)
        or (s.driver_id = auth.uid() and s.owner_id = profiles.id)
-  )
+  ))
 );
 drop policy if exists profiles_update_self on public.profiles;
 create policy profiles_update_self on public.profiles for update to authenticated
-  using (id = auth.uid() and not is_blocked)
-  with check (id = auth.uid());
+  using (public.is_confirmed_user() and id = auth.uid() and not is_blocked)
+  with check (public.is_confirmed_user() and id = auth.uid());
 drop policy if exists profiles_update_admin on public.profiles;
 create policy profiles_update_admin on public.profiles for update to authenticated
-  using (public.is_admin()) with check (public.is_admin());
+  using (public.is_confirmed_user() and public.is_admin()) with check (public.is_confirmed_user() and public.is_admin());
 
 drop policy if exists loads_select_authorized on public.loads;
 create policy loads_select_authorized on public.loads for select to authenticated using (
-  public.is_admin()
-  or owner_id = auth.uid()
-  or (status in ('published', 'receiving_offers') and exists (select 1 from public.profiles p where p.id = auth.uid() and not p.is_blocked))
-  or exists (select 1 from public.shipments s where s.load_id = loads.id and (s.owner_id = auth.uid() or s.driver_id = auth.uid()))
+  public.is_confirmed_user() and (
+    public.is_admin()
+    or owner_id = auth.uid()
+    or (status in ('published', 'receiving_offers') and exists (select 1 from public.profiles p where p.id = auth.uid() and not p.is_blocked))
+    or exists (select 1 from public.shipments s where s.load_id = loads.id and (s.owner_id = auth.uid() or s.driver_id = auth.uid()))
+  )
 );
 drop policy if exists loads_update_owner on public.loads;
 create policy loads_update_owner on public.loads for update to authenticated
-  using (owner_id = auth.uid() and status in ('published', 'receiving_offers'))
-  with check (owner_id = auth.uid());
+  using (public.is_confirmed_user() and owner_id = auth.uid() and status in ('published', 'receiving_offers'))
+  with check (public.is_confirmed_user() and owner_id = auth.uid());
 drop policy if exists loads_update_admin on public.loads;
-create policy loads_update_admin on public.loads for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy loads_update_admin on public.loads for update to authenticated using (public.is_confirmed_user() and public.is_admin()) with check (public.is_confirmed_user() and public.is_admin());
 
 drop policy if exists private_details_select_authorized on public.load_private_details;
 create policy private_details_select_authorized on public.load_private_details for select to authenticated using (
-  public.is_admin()
-  or exists (select 1 from public.loads l where l.id = load_private_details.load_id and l.owner_id = auth.uid())
-  or exists (select 1 from public.shipments s where s.load_id = load_private_details.load_id and (s.owner_id = auth.uid() or s.driver_id = auth.uid()))
+  public.is_confirmed_user() and (
+    public.is_admin()
+    or exists (select 1 from public.loads l where l.id = load_private_details.load_id and l.owner_id = auth.uid())
+    or exists (select 1 from public.shipments s where s.load_id = load_private_details.load_id and (s.owner_id = auth.uid() or s.driver_id = auth.uid()))
+  )
 );
 
 drop policy if exists offers_select_authorized on public.freight_offers;
 create policy offers_select_authorized on public.freight_offers for select to authenticated using (
-  public.is_admin() or driver_id = auth.uid() or exists (
+  public.is_confirmed_user() and (public.is_admin() or driver_id = auth.uid() or exists (
     select 1 from public.loads l where l.id = freight_offers.load_id and l.owner_id = auth.uid()
-  )
+  ))
 );
 
 drop policy if exists shipments_select_authorized on public.shipments;
 create policy shipments_select_authorized on public.shipments for select to authenticated using (
-  public.is_admin() or owner_id = auth.uid() or driver_id = auth.uid()
+  public.is_confirmed_user() and (public.is_admin() or owner_id = auth.uid() or driver_id = auth.uid())
 );
 
 drop policy if exists shipment_history_select_authorized on public.shipment_status_history;
 create policy shipment_history_select_authorized on public.shipment_status_history for select to authenticated using (
-  public.is_admin() or exists (
+  public.is_confirmed_user() and (public.is_admin() or exists (
     select 1 from public.shipments s where s.id = shipment_status_history.shipment_id
       and (s.owner_id = auth.uid() or s.driver_id = auth.uid())
-  )
+  ))
 );
 
 drop policy if exists reports_select_authorized on public.reports;
-create policy reports_select_authorized on public.reports for select to authenticated using (reporter_id = auth.uid() or public.is_admin());
+create policy reports_select_authorized on public.reports for select to authenticated using (public.is_confirmed_user() and (reporter_id = auth.uid() or public.is_admin()));
 drop policy if exists reports_insert_self on public.reports;
 create policy reports_insert_self on public.reports for insert to authenticated with check (
-  reporter_id = auth.uid() and status = 'open' and resolved_at is null and resolved_by is null
+  public.is_confirmed_user() and reporter_id = auth.uid() and status = 'open' and resolved_at is null and resolved_by is null
 );
 drop policy if exists reports_update_admin on public.reports;
-create policy reports_update_admin on public.reports for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy reports_update_admin on public.reports for update to authenticated using (public.is_confirmed_user() and public.is_admin()) with check (public.is_confirmed_user() and public.is_admin());
 
 -- RPC اتمیک ثبت بار و نشانی خصوصی.
 create or replace function public.create_load_with_private_details(p_payload jsonb)
@@ -390,6 +408,7 @@ declare
   v_loading date;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
+  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
   if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'cargo_owner' and not p.is_blocked) then
     raise exception 'فقط صاحب بار فعال می‌تواند بار ثبت کند';
   end if;
@@ -426,6 +445,7 @@ declare
   v_offer_id uuid;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
+  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
   if p_offered_fare is null or p_offered_fare <= 0 or coalesce(length(p_note),0) > 1000 then raise exception 'پیشنهاد معتبر نیست'; end if;
   if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'driver' and not p.is_blocked and p.display_name is not null and p.phone is not null and p.truck_type is not null) then
     raise exception 'پروفایل راننده باید کامل و فعال باشد';
@@ -458,6 +478,7 @@ declare
   v_shipment_id uuid;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
+  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
   select * into v_offer from public.freight_offers where id = p_offer_id for update;
   if not found or v_offer.status <> 'submitted' then raise exception 'این پیشنهاد قابل پذیرش نیست'; end if;
   select * into v_load from public.loads where id = v_offer.load_id for update;
@@ -485,6 +506,7 @@ as $$
 declare v_shipment public.shipments%rowtype;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
+  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
   if coalesce(length(p_note),0) > 1000 then raise exception 'توضیح وضعیت طولانی است'; end if;
   select * into v_shipment from public.shipments where id = p_shipment_id for update;
   if not found then raise exception 'سفارش پیدا نشد'; end if;
@@ -521,6 +543,7 @@ as $$
 declare v_load public.loads%rowtype; v_weight numeric; v_fare bigint; v_date date;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
+  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
   select * into v_load from public.loads where id = p_load_id for update;
   if not found or v_load.owner_id <> auth.uid() or v_load.status not in ('published','receiving_offers') then raise exception 'ویرایش این بار مجاز نیست'; end if;
   v_weight := (p_payload->>'weight_value')::numeric; v_fare := (p_payload->>'proposed_fare')::bigint; v_date := (p_payload->>'loading_date')::date;
@@ -539,6 +562,7 @@ set search_path = public
 as $$
 declare v_shipment public.shipments%rowtype; v_other uuid;
 begin
+  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
   select * into v_shipment from public.shipments where id = p_shipment_id;
   if not found or not (public.is_admin() or auth.uid() = v_shipment.owner_id or auth.uid() = v_shipment.driver_id) then raise exception 'دسترسی به اطلاعات خصوصی مجاز نیست'; end if;
   v_other := case when auth.uid() = v_shipment.owner_id then v_shipment.driver_id else v_shipment.owner_id end;
@@ -559,6 +583,7 @@ grant select on public.shipments to authenticated;
 grant select on public.shipment_status_history to authenticated;
 grant select, insert, update on public.reports to authenticated;
 grant execute on function public.is_admin() to authenticated;
+grant execute on function public.is_confirmed_user() to authenticated;
 grant execute on function public.create_load_with_private_details(jsonb) to authenticated;
 grant execute on function public.update_load_with_private_details(uuid,jsonb) to authenticated;
 grant execute on function public.submit_freight_offer(uuid,bigint,text) to authenticated;
