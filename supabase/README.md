@@ -1,18 +1,24 @@
-# اجرای SQL بارینو از موبایل
+# استقرار Schema بارینو
 
-فایل `supabase_schema.sql` شامل شمای کامل فعلی (پایه، سخت‌سازی‌های قبلی و پنل مدیریت) است. اگر clipboard گوشی برای فایل کامل بزرگ است، ابتدا پنج فایل پایه را **دقیقاً به همین ترتیب** در Supabase SQL Editor اجرا کنید:
+## مسیر پشتیبانی‌شده: GitHub Actions
 
-1. [`01-core-schema.sql`](./01-core-schema.sql) — جدول‌ها، نوع‌ها، indexها و توابع پایه
-2. [`02-security-guards.sql`](./02-security-guards.sql) — Triggerهای محافظتی
-3. [`03-rls-policies.sql`](./03-rls-policies.sql) — فعال‌سازی RLS و policyها
-4. [`04-loads-and-offers.sql`](./04-loads-and-offers.sql) — ثبت بار، پیشنهاد و توافق امن
-5. [`05-shipments-and-grants.sql`](./05-shipments-and-grants.sql) — وضعیت سفارش، اطلاعات خصوصی و مجوزها
-6. [`migrations/20261102100000_admin_console.sql`](./migrations/20261102100000_admin_console.sql) — گزارش مدیریتی و RPCهای محافظت‌شدهٔ پنل
+برای جلوگیری از خطای copy/paste در موبایل، مسیر پشتیبانی‌شده برای دیتابیس موجود و migrationهای بعدی، workflow دستی **Deploy Barino Supabase schema** است:
 
-برای هر فایل: محتوا را کامل Copy کنید، در SQL Editor Paste کنید، **Run** بزنید و تنها پس از پیام موفقیت به فایل بعدی بروید. فایل ششم افزایشی است و باید پس از Schema پایه اجرا شود؛ برای دیتابیسی که قبلاً ساخته شده، فقط migration جدید را اجرا کنید.
+1. migrationهای جدید را همراه کد در `main` ادغام کنید؛ migration اعمال‌شده را بازنویسی نکنید.
+2. در GitHub، از **Settings → Secrets and variables → Actions** فقط secret `SUPABASE_DB_PASSWORD` را ثبت کنید.
+3. از **Actions → Deploy Barino Supabase schema → Run workflow**، branch `main` را انتخاب و اجرا کنید. گزینهٔ `provision_initial_admin` در اجرای عادی باید خاموش بماند.
+4. workflow با `supabase db push` فقط فایل‌های جدید `migrations/` را بر پایهٔ تاریخ نام فایل اعمال می‌کند. اجرای آن خودکار یا بخشی از GitHub Pages نیست.
 
-اگر SQL Editor موبایل متن کامل migration را نمی‌پذیرد، به‌جای فایل migration اصلی، فایل‌های `manual-admin-console/part-01.sql` تا `part-08.sql` را **به همین ترتیب و یکی‌یکی** اجرا کنید؛ پس از موفقیت هر قسمت، بعدی را اجرا کنید. اگر خطایی دیدید، ادامه ندهید. از روش فایل کامل و تکه‌ها با هم استفاده نکنید.
+جدیدترین migration فعلی [`migrations/20261102130000_validation_and_abuse_controls.sql`](./migrations/20261102130000_validation_and_abuse_controls.sql) است. این migration افزایشی است: اعتبارسنجی شمارهٔ ایران برای نوشته‌های جدید/تغییریافته را با `NOT VALID` اضافه می‌کند و هیچ رکورد تاریخی را حذف یا بازنویسی نمی‌کند. پیش از اجرای آن روی دادهٔ واقعی، migrationهای اعمال‌شده و پشتیبان‌گیری خود را بررسی کنید.
 
-> این فایل‌ها جایگزین مستقل نیستند؛ ترتیب شماره‌ها ضروری است. پنج فایل اول، شمای پایه را می‌سازند؛ `supabase_schema.sql` علاوه بر آن‌ها migrationهای تکمیلی فعلی، از جمله پنل مدیریت، را هم دارد. فایل‌های migration اعمال‌شده را در دیتابیس موجود بازنویسی یا از نو اجرا نکنید.
+## دیتابیس تازه
 
-برای تعیین مدیر اولیه، دستور [`admin-provisioning.example.sql`](./admin-provisioning.example.sql) را فقط پس از بررسی عضویت‌های موجود و فقط به‌عنوان مالک پروژه در SQL Editor اجرا کنید. اسکریپت حساب Auth تأییدشده و پروفایل فعالِ بدون مسدودی را لازم دارد؛ پنل از سمت مرورگر امکان ساخت یا ارتقای مدیر ندارد.
+[`../supabase_schema.sql`](../supabase_schema.sql) نمای تجمعی Schema برای **دیتابیس تازه** است و migrationهای تکمیلی تا نسخهٔ فعلی را دارد. آن را روی دیتابیس موجود اجرا نکنید. برای دیتابیس تازه نیز ترجیحاً همین مخزن و workflow Actions را استفاده کنید تا تاریخچهٔ migration ثبت شود.
+
+فایل‌های `01` تا `05` و `manual-admin-console/` در مخزن برای بازبینی/ارجاع تاریخی باقی مانده‌اند؛ آن‌ها مسیر استقرار پیشنهادی برای کاربر موبایل یا دیتابیس در حال استفاده نیستند. ترکیب اجرای دستی تکه‌ها با workflow می‌تواند وضعیت migration را نامشخص کند.
+
+## مدیر اولیه
+
+برای ایجاد مدیر اولیه، حساب منتخب باید از قبل در Supabase Auth وجود داشته باشد، ایمیل تأییدشده و پروفایل Barino فعال و مسدودنشده داشته باشد. سپس مطابق [راهنمای اصلی](../README.md#supabase-setup)، ایمیل دقیق آن حساب را فقط در secret `SUPABASE_INITIAL_ADMIN_EMAIL` قرار دهید و workflow را یک‌بار با گزینهٔ `provision_initial_admin` روشن اجرا کنید.
+
+این provision در runner مورد اعتماد Actions انجام می‌شود، از مرورگر قابل فراخوانی نیست و در صورت وجود مدیر دیگر fail-closed می‌شود. رازها، URL اتصال و ایمیل مدیر را در SQL، commit، Issue یا رابط عمومی قرار ندهید.
