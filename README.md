@@ -1,12 +1,12 @@
-<a id="rimou"></a>
-<h1 align="center">Rimou</h1>
+<a id="Barino"></a>
+<h1 align="center">Barino</h1>
 
 <p align="center" dir="rtl"><strong>بارینو — تجربه‌ای امن و موبایل‌محور برای اتصال صاحبان بار و رانندگان کامیون در ایران</strong></p>
 
 <p align="center">
-  <a href="https://github.com/arshia8058/rimou"><img alt="Repository" src="https://img.shields.io/badge/repository-arshia8058%2Frimou-181717?style=flat-square&logo=github&logoColor=white" /></a>
-  <a href="https://github.com/arshia8058/rimou/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/arshia8058/rimou/main?style=flat-square&label=last%20commit&logo=github" /></a>
-  <a href="https://arshia8058.github.io/rimou/"><img alt="GitHub Pages live" src="https://img.shields.io/badge/GitHub%20Pages-live-222222?style=flat-square&logo=githubpages&logoColor=white" /></a>
+  <a href="https://github.com/arshia8058/Barino"><img alt="Repository" src="https://img.shields.io/badge/repository-arshia8058%2FBarino-181717?style=flat-square&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/arshia8058/Barino/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/arshia8058/Barino/main?style=flat-square&label=last%20commit&logo=github" /></a>
+  <a href="https://arshia8058.github.io/Barino/"><img alt="GitHub Pages live" src="https://img.shields.io/badge/GitHub%20Pages-live-222222?style=flat-square&logo=githubpages&logoColor=white" /></a>
   <a href="https://developer.mozilla.org/docs/Web/HTML"><img alt="HTML5" src="https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white" /></a>
   <a href="https://developer.mozilla.org/docs/Web/CSS"><img alt="CSS3" src="https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white" /></a>
   <a href="https://developer.mozilla.org/docs/Web/JavaScript"><img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-323330?style=flat-square&logo=javascript&logoColor=F7DF1E" /></a>
@@ -14,18 +14,18 @@
 </p>
 
 <p align="center" dir="rtl">
-  <a href="https://arshia8058.github.io/rimou/">مشاهده نسخه زنده</a> ·
-  <a href="https://github.com/arshia8058/rimou">کد منبع</a> ·
+  <a href="https://arshia8058.github.io/Barino/">مشاهده نسخه زنده</a> ·
+  <a href="https://github.com/arshia8058/Barino">کد منبع</a> ·
   <a href="#quick-start">راه‌اندازی</a> ·
   <a href="#supabase-setup">تنظیمات Supabase</a>
 </p>
 
-> **یادداشت نام‌گذاری:** نام مخزن **Rimou** است و محصولی که کاربر در رابط می‌بیند با برند فارسی **«بارینو»** نمایش داده می‌شود.
+> **یادداشت نام‌گذاری:** نام مخزن **Barino** است و محصولی که کاربر در رابط می‌بیند با برند فارسی **«بارینو»** نمایش داده می‌شود.
 
 <a id="overview"></a>
-## ✨ Rimou چیست؟
+## ✨ Barino چیست؟
 
-Rimou یک وب‌اپلیکیشن فارسی، راست‌به‌چپ و **Mobile-First** است که فرایند یافتن بار، ثبت پیشنهاد کرایه و پیگیری حمل را میان صاحبان بار و رانندگان کامیون ساده‌تر می‌کند. رابط کاربری به‌صورت یک SPA استاتیک با HTML، CSS و JavaScript اجرا می‌شود؛ احراز هویت، داده‌های پایدار، قوانین دسترسی و عملیات حساس در **Supabase** قرار دارند.
+Barino یک وب‌اپلیکیشن فارسی، راست‌به‌چپ و **Mobile-First** است که فرایند یافتن بار، ثبت پیشنهاد کرایه و پیگیری حمل را میان صاحبان بار و رانندگان کامیون ساده‌تر می‌کند. رابط کاربری به‌صورت یک SPA استاتیک با HTML، CSS و JavaScript اجرا می‌شود؛ احراز هویت، داده‌های پایدار، قوانین دسترسی و عملیات حساس در **Supabase** قرار دارند.
 
 هدف پروژه فقط نمایش یک رابط زیبا نیست: اطلاعات خصوصی مسیر و تماس از داده‌های عمومی جدا می‌شوند، پذیرش پیشنهاد در تراکنش دیتابیس انجام می‌شود و تصمیم‌های دسترسی به سیاست‌های RLS و RPCهای محافظت‌شده سپرده شده‌اند.
 
@@ -33,14 +33,14 @@ Rimou یک وب‌اپلیکیشن فارسی، راست‌به‌چپ و **Mobi
 
 | مورد | وضعیت فعلی |
 |---|---|
-| نسخه عمومی | [GitHub Pages](https://arshia8058.github.io/rimou/) از `main` و مسیر `/(root)` منتشر شده است. |
+| نسخه عمومی | [GitHub Pages](https://arshia8058.github.io/Barino/) از `main` و مسیر `/(root)` منتشر شده است. |
 | معماری اجرا | فرانت‌اند استاتیک؛ هیچ سرور Node.js یا بک‌اند دائمی سفارشی ندارد. |
 | اتصال داده | فایل `supabase-config.js` شامل پیکربندی **عمومی مرورگر** برای Supabase است. |
 | طرح دیتابیس | Schema، migrationها، RLS، triggerها و RPCها در مخزن وجود دارند. |
 | استقرار Schema | workflow دستی GitHub Actions برای اجرای migrationها وجود دارد. |
 | تست خودکار سرتاسری | در این مخزن suite مستقل E2E وجود ندارد؛ رفتار نهایی Auth و RLS باید با حساب‌های آزمایشی در پروژه Supabase بررسی شود. |
 
-> پیش‌نمایش تصویری یا GIF واقعی در مخزن نگهداری نشده است؛ برای جلوگیری از تصویر ساختگی، تنها [نسخه زنده](https://arshia8058.github.io/rimou/) معرفی می‌شود.
+> پیش‌نمایش تصویری یا GIF واقعی در مخزن نگهداری نشده است؛ برای جلوگیری از تصویر ساختگی، تنها [نسخه زنده](https://arshia8058.github.io/Barino/) معرفی می‌شود.
 
 <a id="contents"></a>
 ## 🧭 فهرست مطالب
@@ -128,8 +128,8 @@ Rimou یک وب‌اپلیکیشن فارسی، راست‌به‌چپ و **Mobi
 
 ```bash
 # 1) دریافت پروژه
-git clone https://github.com/arshia8058/rimou.git
-cd rimou
+git clone https://github.com/arshia8058/Barino.git
+cd Barino
 
 # 2) اجرای یک سرور محلی استاتیک
 python3 -m http.server 8080 --bind 0.0.0.0
@@ -141,7 +141,7 @@ python3 -m http.server 8080 --bind 0.0.0.0
 
 ### اجرای مستقیم نسخه منتشرشده
 
-برای مشاهده بدون نصب چیزی، [نسخه GitHub Pages](https://arshia8058.github.io/rimou/) را باز کنید.
+برای مشاهده بدون نصب چیزی، [نسخه GitHub Pages](https://arshia8058.github.io/Barino/) را باز کنید.
 
 <a id="supabase-setup"></a>
 ## 🟩 تنظیمات Supabase
@@ -174,12 +174,12 @@ window.BARINO_SUPABASE_CONFIG = {
 
 ```text
 Site URL
-https://arshia8058.github.io/rimou/
+https://arshia8058.github.io/Barino/
 
 Redirect URLs
-https://arshia8058.github.io/rimou/
-https://arshia8058.github.io/rimou/#auth
-https://arshia8058.github.io/rimou/#reset-password
+https://arshia8058.github.io/Barino/
+https://arshia8058.github.io/Barino/#auth
+https://arshia8058.github.io/Barino/#reset-password
 ```
 
 برای توسعه محلی، آدرس‌های متناظر مانند موارد زیر را نیز اضافه کنید:
@@ -190,7 +190,7 @@ http://localhost:8080/#auth
 http://localhost:8080/#reset-password
 ```
 
-کد JavaScript مقصد redirect را از URL فعلی مرورگر می‌سازد تا زیرمسیر `/rimou/` در GitHub Pages حفظ شود.
+کد JavaScript مقصد redirect را از URL فعلی مرورگر می‌سازد تا زیرمسیر `/Barino/` در GitHub Pages حفظ شود.
 
 ### ۳) ایجاد Schema و migrationها
 
@@ -231,7 +231,7 @@ values ('UUID-کاربر-مدیر');
 <a id="github-pages"></a>
 ## 🌐 انتشار روی GitHub Pages
 
-وضعیت فعلی مخزن: GitHub Pages از branch `main` و پوشه `/(root)` منتشر می‌شود و URL آن [arshia8058.github.io/rimou](https://arshia8058.github.io/rimou/) است.
+وضعیت فعلی مخزن: GitHub Pages از branch `main` و پوشه `/(root)` منتشر می‌شود و URL آن [arshia8058.github.io/Barino](https://arshia8058.github.io/Barino/) است.
 
 برای fork یا مخزن جدید:
 
@@ -247,7 +247,7 @@ values ('UUID-کاربر-مدیر');
 ## 🗂️ ساختار پروژه
 
 ```text
-rimou/
+Barino/
 ├── index.html                              # نقطه ورود صفحه و وابستگی‌های CDN
 ├── styles.css                              # طراحی فارسی، RTL، responsive و Mobile-First
 ├── app.js                                  # منطق SPA، Auth، فرم‌ها، داده و تعامل‌ها
@@ -271,7 +271,7 @@ rimou/
 <a id="security"></a>
 ## 🔒 امنیت و حریم خصوصی
 
-امنیت Rimou فقط به پنهان‌کردن دکمه‌ها در رابط وابسته نیست. کنترل‌های زیر در کد و Schema وجود دارند:
+امنیت Barino فقط به پنهان‌کردن دکمه‌ها در رابط وابسته نیست. کنترل‌های زیر در کد و Schema وجود دارند:
 
 - **RLS برای جدول‌های حساس:** `profiles`، `loads`، `load_private_details`، `freight_offers`، `shipments`، `shipment_status_history` و `reports`.
 - **حساب فعال در دیتابیس:** policyها و RPCهای حساس، تأییدشدن ایمیل و مسدودنبودن حساب را با `is_active_user()` کنترل می‌کنند.
@@ -309,7 +309,7 @@ RLS از درخواست‌های مرورگر با کلید عمومی محاف�
 | نشانه | علت محتمل | راه‌حل |
 |---|---|---|
 | پیام «تنظیمات Supabase وارد نشده است» | `url` یا `anonKey` placeholder است یا فایل پیکربندی لود نشده | `supabase-config.js` را با قالب example بررسی کنید؛ فقط URL و publishable/anon key عمومی را وارد کنید. |
-| لینک تأیید یا بازیابی به صفحه نامعتبر می‌رود | URL بازگشت در Supabase ثبت نشده | Site URL و هر سه Redirect URL بخش تنظیمات را دقیق و با زیرمسیر `/rimou/` وارد کنید. |
+| لینک تأیید یا بازیابی به صفحه نامعتبر می‌رود | URL بازگشت در Supabase ثبت نشده | Site URL و هر سه Redirect URL بخش تنظیمات را دقیق و با زیرمسیر `/Barino/` وارد کنید. |
 | دکمه ارسال دوباره ایمیل غیرفعال است | شمارش معکوس ۶۰ ثانیه‌ای فعال است | صبر کنید؛ شمارش با زمان واقعی به‌روزرسانی می‌شود. اگر برنامه در پس‌زمینه بود، با بازگشت به صفحه دوباره محاسبه می‌شود. محدودیت Supabase ممکن است طولانی‌تر باشد. |
 | پیام rate limit ایمیل | محدودیت سمت Supabase/Auth provider | پشت سر هم درخواست نفرستید و تا پایان محدودیت provider صبر کنید؛ cooldown رابط جایگزین محدودیت سرور نیست. |
 | ثبت/خواندن داده با خطای permission یا RLS رد می‌شود | ایمیل تأیید نشده، حساب مسدود است یا سیاست دسترسی اجازه نمی‌دهد | تأیید ایمیل، نقش حساب و RLS/schema اعمال‌شده را بررسی کنید؛ برای رفع مشکل RLS را خاموش نکنید. |
@@ -337,6 +337,6 @@ RLS از درخواست‌های مرورگر با کلید عمومی محاف�
 ---
 
 <p align="center" dir="rtl">
-  <strong>Rimou / بارینو</strong> · حمل‌ونقل شفاف‌تر با داده‌های محافظت‌شده<br />
-  <a href="#rimou">بازگشت به بالا</a>
+  <strong>Barino / بارینو</strong> · حمل‌ونقل شفاف‌تر با داده‌های محافظت‌شده<br />
+  <a href="#Barino">بازگشت به بالا</a>
 </p>
