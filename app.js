@@ -60,6 +60,7 @@
     if (/User already registered/i.test(raw)) return 'اگر قبلاً حساب ساخته‌اید، وارد شوید یا لینک تأیید را دوباره ارسال کنید.';
     if (/rate limit|over_email_send_rate_limit/i.test(raw)) return 'درخواست‌های ایمیل زیاد بوده است؛ چند دقیقه صبر کنید و دوباره تلاش کنید.';
     if (/Password should be at least|weak password/i.test(raw)) return 'رمز عبور انتخاب‌شده با سیاست امنیتی مجاز نیست.';
+    if (/profiles_phone_canonical_unique_idx/i.test(raw)) return 'این شماره موبایل قبلاً برای حساب دیگری ثبت شده است.';
     if (/duplicate|unique/i.test(raw)) return 'این مورد قبلاً ثبت شده است.';
     if (/network|fetch/i.test(raw)) return 'ارتباط با اینترنت یا سرور برقرار نشد. دوباره تلاش کنید.';
     if (/حساب شما فعال نیست|account.*not.*active|blocked/i.test(raw)) return 'حساب شما فعال نیست یا توسط مدیر مسدود شده است.';
@@ -68,6 +69,21 @@
     return raw ? `عملیات انجام نشد: ${raw}` : 'عملیات انجام نشد. لطفاً دوباره تلاش کنید.';
   }
   function normalizeDigits(value) { return String(value || '').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٬,]/g, ''); }
+  function normalizePhone(value) {
+    const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+    const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+    const asciiDigits = '0123456789';
+    return String(value ?? '').replace(/[۰-۹٠-٩]/g, digit => {
+      const persianIndex = persianDigits.indexOf(digit);
+      return asciiDigits[persianIndex >= 0 ? persianIndex : arabicDigits.indexOf(digit)];
+    }).replace(/[\s-]/g, '');
+  }
+  function canonicalPhone(value) {
+    const normalized = normalizePhone(value);
+    if (/^[+]989[0-9]{9}$/.test(normalized)) return `0${normalized.slice(3)}`;
+    if (/^00989[0-9]{9}$/.test(normalized)) return `0${normalized.slice(4)}`;
+    return normalized;
+  }
   function statusLabel(status) { return ({ published:'منتشرشده', receiving_offers:'در حال دریافت پیشنهاد', agreed:'توافق‌شده', awaiting_pickup:'در انتظار بارگیری', in_transit:'در حال حمل', delivered:'تحویل‌شده', cancelled:'لغوشده', submitted:'ارسال‌شده', accepted:'پذیرفته‌شده', rejected:'ردشده', declined:'مختومه' })[status] || status || '—'; }
   function roleLabel(role) { return role === 'driver' ? 'راننده' : 'صاحب بار'; }
   function isConfigured() { const c = window.BARINO_SUPABASE_CONFIG; return !!(c && /^https:\/\//.test(c.url || '') && c.anonKey && !String(c.url).includes('YOUR_') && !String(c.anonKey).includes('YOUR_')); }
@@ -488,7 +504,7 @@
     if (!okay) { first?.focus(); toast('لطفاً خطاهای فرم را اصلاح کنید.','error'); }
     return okay;
   }
-  function phoneValid(v) { return /^(?:\+98|0098|0)?9\d{9}$/.test(normalizeDigits(v).replace(/[\s-]/g,'')) ? '' : 'شماره موبایل ایران را درست وارد کنید.'; }
+  function phoneValid(v) { return /^(?:09[0-9]{9}|[+]989[0-9]{9}|00989[0-9]{9})$/.test(normalizePhone(v)) ? '' : 'شماره موبایل ایران را درست وارد کنید.'; }
   function positiveNumber(v, message = 'مقدار معتبر و بزرگ‌تر از صفر وارد کنید.') { const n=Number(normalizeDigits(v)); return Number.isFinite(n) && n>0 ? '' : message; }
   function strongPasswordValid(value) { return /[A-Za-zآ-ی]/.test(value) && /\d/.test(value) ? '' : 'رمز باید دست‌کم یک حرف و یک عدد داشته باشد.'; }
   function showFieldError(form, name, message) { const input = form.elements[name]; if (!input) return; input.setAttribute('aria-invalid','true'); input.closest('.field')?.querySelector('.field-error')?.replaceChildren(document.createTextNode(message)); input.focus(); }
@@ -561,7 +577,7 @@
     if(form.id === 'report-form') { await submitReport(form); return; }
   }
   async function saveProfile(form) {
-    if(!formValid(form,{phone:phoneValid}))return; const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form); const payload={display_name:f.get('display_name').trim(),phone:normalizeDigits(f.get('phone')).replace(/[\s-]/g,''),city:f.get('city').trim()||null};if(state.profile.role==='driver')Object.assign(payload,{truck_type:f.get('truck_type'),truck_model:f.get('truck_model').trim()||null,plate_number:f.get('plate_number').trim()||null});const {error}=await state.client.from('profiles').update(payload).eq('id',state.user.id);if(error)throw error;await loadProfile();toast('پروفایل با موفقیت ذخیره شد.','success');navigate('home');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
+    if(!formValid(form,{phone:phoneValid}))return; const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form); const payload={display_name:f.get('display_name').trim(),phone:canonicalPhone(f.get('phone')),city:f.get('city').trim()||null};if(state.profile.role==='driver')Object.assign(payload,{truck_type:f.get('truck_type'),truck_model:f.get('truck_model').trim()||null,plate_number:f.get('plate_number').trim()||null});const {error}=await state.client.from('profiles').update(payload).eq('id',state.user.id);if(error)throw error;await loadProfile();toast('پروفایل با موفقیت ذخیره شد.','success');navigate('home');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
   }
   async function createLoad(form) {
     const rules={weight_value:v=>positiveNumber(v,'وزن معتبر و بزرگ‌تر از صفر وارد کنید.'),proposed_fare:v=>positiveNumber(v,'کرایه باید بزرگ‌تر از صفر باشد.')}; if(!formValid(form,rules)) return; const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form); const payload={title:f.get('title').trim(),cargo_description:f.get('cargo_description').trim()||null,cargo_type:f.get('cargo_type'),required_truck_type:f.get('required_truck_type'),weight_value:Number(normalizeDigits(f.get('weight_value'))),weight_unit:f.get('weight_unit'),origin_city:f.get('origin_city').trim(),destination_city:f.get('destination_city').trim(),pickup_address:f.get('pickup_address').trim(),delivery_address:f.get('delivery_address').trim(),loading_date:f.get('loading_date'),proposed_fare:Number(normalizeDigits(f.get('proposed_fare'))),notes:f.get('notes').trim()||null};const {data,error}=await state.client.rpc('create_load_with_private_details',{p_payload:payload});if(error)throw error;toast('بار با موفقیت ثبت و منتشر شد.','success');navigate('offers');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
