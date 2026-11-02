@@ -171,8 +171,14 @@
     window.addEventListener('pageshow', () => { scheduleEmailCooldownRefresh(); });
     window.addEventListener('online', () => { state.online = true; render(); toast('اتصال اینترنت برقرار شد.', 'success'); });
     window.addEventListener('offline', () => { state.online = false; render(); });
-    const hashRoute = location.hash.replace(/^#/, '');
-    if (hashRoute) state.route = hashRoute.split('/')[0];
+    const hashRoute = location.hash.replace(/^#/, '').split('/')[0];
+    if (hashRoute === 'admin') {
+      const adminUrl = new URL('admin.html', window.location.href);
+      adminUrl.hash = '';
+      window.location.replace(adminUrl.href);
+      return;
+    }
+    if (hashRoute) state.route = hashRoute;
     window.addEventListener('hashchange', () => { const route = location.hash.replace(/^#/, '').split('/')[0] || 'home'; navigate(route, false); });
     if (!isConfigured()) { render(); return; }
     try {
@@ -214,7 +220,7 @@
       await loadProfile();
       await checkAdmin();
     }
-    if (!state.user && ['create-load','offers','shipments','profile','admin'].includes(state.route)) state.route = 'home';
+    if (!state.user && ['create-load','offers','shipments','profile'].includes(state.route)) state.route = 'home';
     renderShell();
     render();
   }
@@ -243,9 +249,14 @@
     if (!error) state.isAdmin = data === true;
   }
   function navigate(route, changeHash = true) {
-    const protectedRoutes = ['loads','create-load','offers','shipments','profile','admin'];
+    if (route === 'admin') {
+      const adminUrl = new URL('admin.html', window.location.href);
+      adminUrl.hash = '';
+      window.location.assign(adminUrl.href);
+      return;
+    }
+    const protectedRoutes = ['loads','create-load','offers','shipments','profile'];
     if (protectedRoutes.includes(route) && !state.user) { state.route = 'auth'; state.authTab = 'login'; toast('برای ادامه ابتدا وارد حساب خود شوید.', 'info'); }
-    else if (route === 'admin' && !state.isAdmin) { state.route = 'home'; toast('دسترسی به بخش مدیریت مجاز نیست.', 'error'); }
     else if (route === 'create-load' && state.profile?.role !== 'cargo_owner') { state.route = 'home'; toast('ثبت بار فقط برای صاحب بار در دسترس است.', 'error'); }
     else { state.route = route || 'home'; }
     if (changeHash) history.replaceState(null, '', `#${state.route}`);
@@ -257,7 +268,7 @@
     if (!isConfigured()) { renderConfiguration(); return; }
     if (!state.online && !state.user) { renderOffline(); return; }
     if (state.user && !state.profile && state.initialized) { renderProfileMissing(); return; }
-    const map = { home: renderHome, auth: renderAuth, loads: renderLoads, 'create-load': renderCreateLoad, offers: renderOffers, shipments: renderShipments, profile: renderProfile, admin: renderAdmin };
+    const map = { home: renderHome, auth: renderAuth, loads: renderLoads, 'create-load': renderCreateLoad, offers: renderOffers, shipments: renderShipments, profile: renderProfile };
     (map[state.route] || renderHome)();
   }
   function renderConfiguration() {
@@ -424,38 +435,7 @@
     main.innerHTML = `${networkNotice()}<div class="page-head"><div><h1>${forceComplete ? 'تکمیل پروفایل' : 'حساب کاربری'}</h1><p class="subtitle">${forceComplete ? 'برای استفاده از امکانات، اطلاعات ضروری را کامل کنید.' : 'اطلاعات تماس و مشخصات خودرو را مدیریت کنید.'}</p></div></div>${!profileReady() ? `<div class="notice warning">${icon('alert')}<p>تا تکمیل نام، شماره تماس${driver ? ' و نوع کامیون' : ''}، عملیات اصلی حساب فعال نمی‌شود.</p></div>` : ''}<form id="profile-form" class="form-grid" novalidate><section class="card"><div class="profile-summary"><div class="avatar">${esc((p.display_name || state.user?.email || 'ب').slice(0,1))}</div><div><h2>${esc(p.display_name || 'کاربر بارینو')}</h2><p class="muted">${roleLabel(p.role)} · ${esc(state.user?.email || '')}</p></div></div><div class="divider"></div><div class="form-grid"><div class="field"><label for="display-name">نام و نام خانوادگی <span class="required">*</span></label><input id="display-name" class="input" name="display_name" maxlength="100" required value="${esc(p.display_name || '')}" placeholder="نام کامل"><span class="field-error"></span></div><div class="field"><label for="phone">شماره موبایل ایران <span class="required">*</span></label><input id="phone" class="input" name="phone" inputmode="tel" autocomplete="tel" required value="${esc(p.phone || '')}" placeholder="۰۹۱۲۱۲۳۴۵۶۷"><small>برای طرف سفارش، فقط بعد از توافق قابل مشاهده است.</small><span class="field-error"></span></div><div class="field"><label for="profile-city">شهر محل فعالیت</label><input id="profile-city" class="input" name="city" list="iran-cities" value="${esc(p.city || '')}" placeholder="مثلاً تهران"></div></div></section>${driver ? `<section class="card"><span class="kicker">مشخصات کامیون</span><div class="form-grid" style="margin-top:12px"><div class="field"><label for="profile-truck">نوع کامیون <span class="required">*</span></label><select id="profile-truck" name="truck_type" required>${truckOptions(p.truck_type)}</select><span class="field-error"></span></div><div class="form-grid two"><div class="field"><label for="truck-model">مدل یا برند</label><input id="truck-model" class="input" name="truck_model" maxlength="100" value="${esc(p.truck_model || '')}" placeholder="مثلاً ولوو FH"></div><div class="field"><label for="plate-number">پلاک</label><input id="plate-number" class="input" name="plate_number" maxlength="30" value="${esc(p.plate_number || '')}" placeholder="خصوصی"></div></div></div></section>` : ''}<div class="form-actions"><button type="submit" class="button primary">ذخیره اطلاعات</button></div></form>${!forceComplete ? `<section class="card section"><h2>امنیت حساب</h2><p class="muted">برای خروج از حساب فقط روی دستگاه شخصی اقدام کنید.</p><div class="action-row"><button type="button" class="button ghost" data-action="forgot-password">تغییر رمز عبور</button><button type="button" class="button danger" data-action="signout">${icon('logout')} خروج از حساب</button></div></section><section class="card section"><h2>گزارش مشکل</h2><p class="muted">در صورت تخلف یا شکایت مرتبط با سفارش، گزارش را برای بررسی مدیر سامانه ثبت کنید.</p><button type="button" class="button secondary" data-open-report="">ثبت گزارش</button></section>` : ''}<datalist id="iran-cities">${cityOptions()}</datalist>`;
   }
 
-  function renderAdmin() {
-    main.innerHTML = `${networkNotice()}<div class="page-head"><div><h1>مدیریت سامانه</h1><p class="subtitle">دسترسی مدیریت با بررسی امن سمت پایگاه داده تأیید شده است.</p></div><span class="badge">${icon('shield')} مدیر</span></div><div class="admin-nav" role="tablist"><button class="active" data-admin-tab="overview">نمای کلی</button><button data-admin-tab="users">کاربران</button><button data-admin-tab="loads">بارها</button><button data-admin-tab="shipments">سفارش‌ها</button><button data-admin-tab="reports">گزارش‌ها</button></div><div id="admin-result">${skeletons(3)}</div>`;
-    loadAdmin('overview');
-  }
-  async function loadAdmin(tab) {
-    const target = $('#admin-result'); if (!target) return; target.innerHTML = skeletons(3);
-    try {
-      if (tab === 'overview') {
-        const results = await Promise.all([
-          state.client.from('profiles').select('*',{count:'exact',head:true}),
-          state.client.from('loads').select('*',{count:'exact',head:true}),
-          state.client.from('shipments').select('*',{count:'exact',head:true}).in('status',['agreed','awaiting_pickup','in_transit']),
-          state.client.from('shipments').select('*',{count:'exact',head:true}).eq('status','delivered'),
-          state.client.from('reports').select('*',{count:'exact',head:true}).eq('status','open')
-        ]); const error = results.find(x=>x.error)?.error; if(error) throw error;
-        target.innerHTML = `<div class="stats-grid">${results.map((x,i)=>`<article class="stat-card"><div class="stat-icon">${[icon('user'),icon('box'),icon('truck'),icon('chart'),icon('alert')][i]}</div><strong class="stat-num">${faNumber(x.count || 0)}</strong><span class="stat-label">${['کاربران','بارهای ثبت‌شده','سفارش‌های جاری','تحویل‌شده','گزارش باز'][i]}</span></article>`).join('')}</div><section class="card section"><h2>یادآوری امنیتی</h2><p class="muted">تنها مدیرانی که در جدول محافظت‌شده <code>app_admins</code> ثبت شده‌اند این بخش را می‌بینند. نقش مدیر هرگز از پروفایل قابل ویرایش نیست.</p></section>`;
-      } else if (tab === 'users') {
-        const {data,error}=await state.client.from('profiles').select('id,display_name,phone,role,truck_type,is_blocked,created_at').order('created_at',{ascending:false}).limit(80); if(error) throw error;
-        target.innerHTML = adminList(data, p => `<div class="table-row"><div><strong>${esc(p.display_name || 'تکمیل نشده')}</strong><p>${roleLabel(p.role)} · ${esc(p.phone || 'بدون شماره')} ${p.truck_type ? '· '+esc(p.truck_type) : ''}</p></div><button class="button ${p.is_blocked ? 'secondary' : 'danger'} small" type="button" data-toggle-block="${esc(p.id)}" data-blocked="${p.is_blocked ? '1':'0'}">${p.is_blocked ? 'رفع مسدودی' : 'مسدودسازی'}</button></div>`, 'کاربری برای نمایش نیست');
-      } else if (tab === 'loads') {
-        const {data,error}=await state.client.from('loads').select('*').order('created_at',{ascending:false}).limit(80); if(error) throw error;
-        target.innerHTML = adminList(data, x => `<div class="table-row"><div><strong>${esc(x.title)}</strong><p>${esc(x.origin_city)} ← ${esc(x.destination_city)} · ${statusLabel(x.status)} · ${dateFa(x.created_at)}</p></div><span class="status ${esc(x.status)}">${statusLabel(x.status)}</span></div>`, 'باری برای نمایش نیست');
-      } else if (tab === 'shipments') {
-        const {data,error}=await state.client.from('shipments').select('*,loads(title,origin_city,destination_city)').order('created_at',{ascending:false}).limit(80); if(error) throw error;
-        target.innerHTML = adminList(data, x => `<div class="table-row"><div><strong>${esc(x.loads?.title || 'سفارش')}</strong><p>${esc(x.loads?.origin_city||'—')} ← ${esc(x.loads?.destination_city||'—')} · ${dateFa(x.created_at)}</p></div><span class="status ${esc(x.status)}">${statusLabel(x.status)}</span></div>`, 'سفارشی برای نمایش نیست');
-      } else {
-        const {data,error}=await state.client.from('reports').select('*').order('created_at',{ascending:false}).limit(80); if(error) throw error;
-        target.innerHTML = adminList(data, x => `<div class="table-row"><div><strong>${esc(x.subject || 'گزارش')}</strong><p>${esc(x.description)} · ${dateFa(x.created_at)}</p></div>${x.status === 'open' ? `<button class="button secondary small" type="button" data-resolve-report="${esc(x.id)}">مختومه</button>` : `<span class="status delivered">مختومه</span>`}</div>`, 'گزارش بازی برای نمایش نیست');
-      }
-    } catch(error) { target.innerHTML = `<div class="notice danger">${icon('alert')}<p>${esc(humanError(error))}</p></div>`; }
-  }
-  function adminList(data, mapper, empty) { return data?.length ? `<div class="table-list">${data.map(mapper).join('')}</div>` : emptyHTML(empty,'',null,null); }
+
 
   function showModal(content) { modalRoot.innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal" role="dialog" aria-modal="true">${content}</section></div>`; const first = modalRoot.querySelector('input,textarea,select,button'); first?.focus(); }
   function closeModal() { modalRoot.innerHTML = ''; }
@@ -599,7 +579,7 @@
 
   document.addEventListener('click', async event => {
     const target = event.target.closest('button,a'); if(!target) return;
-    if(target.dataset.route){ event.preventDefault();navigate(target.dataset.route);return; }
+    if(target.dataset.route){ event.preventDefault(); if(target.dataset.route === 'admin'){ const adminUrl = new URL('admin.html', window.location.href); adminUrl.hash = ''; window.location.assign(adminUrl.href); return; } navigate(target.dataset.route);return; }
     if(target.dataset.authTab){state.authTab=target.dataset.authTab;renderAuth();return;}
     if(target.dataset.signupRole){state.signupRole=target.dataset.signupRole;renderAuth();return;}
     if(target.dataset.togglePassword){const input=document.getElementById(target.dataset.togglePassword);if(!input)return;const show=input.type==='password';input.type=show?'text':'password';target.setAttribute('aria-pressed',String(show));target.setAttribute('aria-label',show?'پنهان‌کردن رمز عبور':'نمایش رمز عبور');target.innerHTML=icon(show?'eyeOff':'eye');return;}
@@ -623,9 +603,6 @@
     if(target.dataset.cancelLoad){await cancelLoad(target.dataset.cancelLoad);return;}
     if(target.dataset.acceptOffer){await acceptOffer(target.dataset.acceptOffer);return;}
     if(target.dataset.shipmentStatus){await changeShipmentStatus(target.dataset.shipmentStatus,target.dataset.nextStatus);return;}
-    if(target.dataset.adminTab){document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b===target));loadAdmin(target.dataset.adminTab);return;}
-    if(target.dataset.toggleBlock){await toggleBlock(target.dataset.toggleBlock,target.dataset.blocked==='1');return;}
-    if(target.dataset.resolveReport){await resolveReport(target.dataset.resolveReport);return;}
   });
   document.addEventListener('submit', onSubmit);
   document.addEventListener('keydown', e => { if(e.key==='Escape')closeModal(); });
@@ -672,8 +649,6 @@
   async function cancelLoad(id){if(!confirm('از لغو این بار مطمئن هستید؟ پس از توافق امکان لغو از این مسیر وجود ندارد.'))return;try{const {error}=await state.client.from('loads').update({status:'cancelled'}).eq('id',id);if(error)throw error;closeModal();toast('بار لغو شد.','success');render();}catch(e){toast(humanError(e),'error');}}
   async function acceptOffer(id){if(!confirm('با پذیرش این پیشنهاد، سفارش حمل ایجاد و سایر پیشنهادها مختومه می‌شوند. ادامه می‌دهید؟'))return;try{const {error}=await state.client.rpc('accept_freight_offer',{p_offer_id:id});if(error)throw error;toast('پیشنهاد پذیرفته و سفارش حمل ایجاد شد.','success');navigate('shipments');}catch(e){toast(humanError(e),'error');}}
   async function changeShipmentStatus(id,next){const labels={awaiting_pickup:'آماده بارگیری',in_transit:'در حال حمل',delivered:'تحویل‌شده'};if(!confirm(`وضعیت سفارش به «${labels[next]}» تغییر کند؟`))return;try{const {error}=await state.client.rpc('change_shipment_status',{p_shipment_id:id,p_new_status:next,p_note:null});if(error)throw error;closeModal();toast('وضعیت سفارش به‌روزرسانی شد.','success');render();}catch(e){toast(humanError(e),'error');}}
-  async function toggleBlock(id,blocked){if(!confirm(blocked?'مسدودی این کاربر برداشته شود؟':'کاربر مسدود شود؟'))return;try{const {error}=await state.client.from('profiles').update({is_blocked:!blocked}).eq('id',id);if(error)throw error;toast(blocked?'مسدودی کاربر برداشته شد.':'کاربر مسدود شد.','success');loadAdmin('users');}catch(e){toast(humanError(e),'error');}}
-  async function resolveReport(id){try{const {error}=await state.client.from('reports').update({status:'resolved',resolved_at:new Date().toISOString(),resolved_by:state.user.id}).eq('id',id);if(error)throw error;toast('گزارش مختومه شد.','success');loadAdmin('reports');}catch(e){toast(humanError(e),'error');}}
 
   init();
 })();
