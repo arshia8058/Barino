@@ -2,6 +2,12 @@ name: Deploy Barino Supabase schema
 
 on:
   workflow_dispatch:
+    inputs:
+      provision_initial_admin:
+        description: 'Provision the one verified initial administrator from the protected Actions secret'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -25,6 +31,8 @@ jobs:
       - name: Apply Barino schema securely
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_INITIAL_ADMIN_EMAIL: ${{ secrets.SUPABASE_INITIAL_ADMIN_EMAIL }}
+          PROVISION_INITIAL_ADMIN: ${{ inputs.provision_initial_admin }}
         run: |
           if [ -z "$SUPABASE_DB_PASSWORD" ]; then
             echo "Missing required repository secret: SUPABASE_DB_PASSWORD"
@@ -34,3 +42,72 @@ jobs:
           DB_PASSWORD_ENCODED="$(node -e 'process.stdout.write(encodeURIComponent(process.env.SUPABASE_DB_PASSWORD))')"
           DB_URL="postgresql://postgres.${SUPABASE_PROJECT_REF}:${DB_PASSWORD_ENCODED}@${SUPABASE_POOLER_HOST}:6543/postgres"
           supabase db push --db-url "$DB_URL"
+
+          # This optional path runs only after all migrations have succeeded. It is not reachable
+          # from the browser: a repository maintainer must manually dispatch this workflow.
+          if [ "$PROVISION_INITIAL_ADMIN" != "true" ]; then
+            exit 0
+          fi
+          if [ -z "$SUPABASE_INITIAL_ADMIN_EMAIL" ]; then
+            echo "Missing required repository secret: SUPABASE_INITIAL_ADMIN_EMAIL"
+            exit 1
+          fi
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes postgresql-client
+          fi
+
+          cat > /tmp/provision-initial-admin.sql <<'SQL'
+          \set ON_ERROR_STOP on
+          \o /dev/null
+          select set_config('app.barino_initial_admin_email', :'admin_email', false);
+          \o
+          do $provision$
+          declare
+            v_admin_email text := lower(btrim(current_setting('app.barino_initial_admin_email', true)));
+            v_admin_id uuid;
+          begin
+            if v_admin_email = '' then
+              raise exception 'Initial administrator email is empty';
+            end if;
+
+            -- Serializes manual dispatches so two concurrent runs cannot create two owners.
+            lock table public.app_admins in share row exclusive mode;
+
+            select u.id into v_admin_id
+            from auth.users u
+            where lower(u.email) = v_admin_email
+              and u.email_confirmed_at is not null;
+            if not found then
+              raise exception 'Expected one existing email-verified Auth account for the selected administrator';
+            end if;
+            if exists (
+              select 1 from auth.users u
+              where lower(u.email) = v_admin_email
+                and u.email_confirmed_at is not null
+              group by lower(u.email)
+              having count(*) <> 1
+            ) then
+              raise exception 'Expected exactly one email-verified Auth account for the selected administrator';
+            end if;
+            if not exists (
+              select 1 from public.profiles p
+              where p.id = v_admin_id and not p.is_blocked
+            ) then
+              raise exception 'Selected administrator must have an active, unblocked Barino profile';
+            end if;
+            if exists (
+              select 1 from public.app_admins a where a.user_id <> v_admin_id
+            ) then
+              raise exception 'An administrator membership already exists; review it as the project owner before provisioning another account';
+            end if;
+
+            insert into public.app_admins (user_id)
+            values (v_admin_id)
+            on conflict (user_id) do nothing;
+          end;
+          $provision$;
+          SQL
+          psql "$DB_URL" -v admin_email="$SUPABASE_INITIAL_ADMIN_EMAIL" -f /tmp/provision-initial-admin.sql
+          rm -f /tmp/provision-initial-admin.sql
+          echo "Initial administrator membership provisioned."

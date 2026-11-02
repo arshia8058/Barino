@@ -162,6 +162,7 @@ window.BARINO_SUPABASE_CONFIG = {
 | `url` | Project URL پروژه Supabase | `supabase-config.js` |
 | `anonKey` | Publishable key یا anon key قابل استفاده در مرورگر | `supabase-config.js` |
 | `SUPABASE_DB_PASSWORD` | رمز اتصال workflow برای اجرای migration | فقط GitHub Actions Secret؛ هرگز در مرورگر یا README نیست |
+| `SUPABASE_INITIAL_ADMIN_EMAIL` | ایمیل حساب تأییدشده‌ای که مالک برای مدیر اولیه انتخاب کرده است | فقط GitHub Actions Secret؛ فقط هنگام provision اختیاری workflow خوانده می‌شود |
 
 - قالب امن پیکربندی در [`supabase-config.example.js`](./supabase-config.example.js) قرار دارد.
 - فایل `supabase-config.js` نسخه حاضر پیکربندی عمومیِ موردنیاز نسخه Pages را دارد. برای fork یا پروژه مستقل، مقادیر خودتان را جایگزین کنید و دامنهٔ `connect-src` در CSP هر دو فایل `index.html` و `admin.html` را با میزبان Supabase همان پروژه هماهنگ کنید.
@@ -209,26 +210,20 @@ http://localhost:8080/#reset-password
 <details>
 <summary><strong>مسیر B — GitHub Actions (مناسب موبایل و migrationهای بعدی)</strong></summary>
 
-1. در مخزن GitHub به **Settings → Secrets and variables → Actions** بروید.
-2. فقط یک secret با نام `SUPABASE_DB_PASSWORD` بسازید و رمز دیتابیس Supabase را وارد کنید.
-3. پس از قرارگرفتن migrationها در `main`، workflow [Deploy Barino Supabase schema](./.github/workflows/deploy-supabase-schema.yml) را از تب **Actions** به‌صورت دستی و روی branch `main` اجرا کنید.
-4. workflow با Supabase CLI، فایل‌های [`supabase/migrations/`](./supabase/migrations/) را اعمال می‌کند.
+1. در مخزن GitHub به **Settings → Secrets and variables → Actions** بروید و secret `SUPABASE_DB_PASSWORD` را با رمز دیتابیس Supabase بسازید.
+2. پس از قرارگرفتن migrationها در `main`، workflow [Deploy Barino Supabase schema](./.github/workflows/deploy-supabase-schema.yml) را از تب **Actions** به‌صورت دستی و روی branch `main` اجرا کنید؛ گزینهٔ `provision_initial_admin` را برای اجرای عادی خاموش بگذارید.
+3. workflow با Supabase CLI، فایل‌های [`supabase/migrations/`](./supabase/migrations/) را اعمال می‌کند.
+4. برای ایجاد مدیر اولیه بدون Copy/Paste SQL، ابتدا secret دوم `SUPABASE_INITIAL_ADMIN_EMAIL` را با ایمیل دقیقِ حسابی که قبلاً ثبت‌نام و ایمیلش تأیید شده است بسازید؛ سپس همان workflow را با گزینهٔ `provision_initial_admin` روشن اجرا کنید. این مسیر فقط در runner مورد اعتماد Actions اجرا می‌شود، از مرورگر قابل فراخوانی نیست و با وجود مدیر دیگر fail-closed می‌شود.
 
-workflow آدرس اتصال را داخل runner می‌سازد و رمز را URL-encode می‌کند؛ URL اتصال یا رمز در مخزن نگهداری نمی‌شود.
+workflow آدرس اتصال را داخل runner می‌سازد و رمز/ایمیل مدیر را از Secrets می‌خواند؛ URL اتصال، رمز و ایمیل در مخزن یا رابط عمومی نگهداری نمی‌شوند.
 
 </details>
 
 ### ۴) تعیین حساب مدیر اولیه
 
-حساب مدیر را از قبل حدس نمی‌زنیم و رمز یا ایمیلی در کد قرار نمی‌دهیم. ابتدا مطمئن شوید حساب موردنظر در **Supabase Auth** وجود دارد، ایمیلش تأیید شده و پروفایل Barino آن فعال و مسدودنشده است. به‌عنوان مالک پروژه، عضویت‌های فعلی را در SQL Editor بررسی کنید:
+حساب مدیر از قبل حدس زده نمی‌شود و رمز یا ایمیلی در کد قرار ندارد. ابتدا مطمئن شوید حساب موردنظر در **Supabase Auth** وجود دارد، ایمیلش تأیید شده و پروفایل Barino آن فعال و مسدودنشده است. سپس دقیقاً طبق گام ۴ مسیر GitHub Actions، ایمیل آن حساب را فقط در secret `SUPABASE_INITIAL_ADMIN_EMAIL` قرار دهید و workflow را با گزینهٔ `provision_initial_admin` روشن به‌صورت دستی اجرا کنید.
 
-```sql
-select a.user_id, u.email, u.email_confirmed_at, a.created_at
-from public.app_admins a
-join auth.users u on u.id = a.user_id;
-```
-
-سپس فایل [`supabase/admin-provisioning.example.sql`](./supabase/admin-provisioning.example.sql) را باز کنید، فقط مقدار `REPLACE_WITH_VERIFIED_OWNER_EMAIL` را با ایمیل دقیق همان حساب جایگزین کنید و کل فایل را در SQL Editor اجرا کنید. این اسکریپت حساب Auth را پیدا می‌کند و تأیید ایمیل را کنترل می‌کند. اگر عضویت مدیر دیگری وجود داشته باشد، متوقف می‌شود؛ مالک باید هویت آن را بررسی و در صورت لزوم، فقط با تصمیم صریح خودش دسترسی قبلی را لغو کند. تا وقتی تعداد عضویت‌ها دقیقاً یک نباشد، `is_admin()` عمداً برای همه false برمی‌گرداند و پنل fail-closed است. هیچ عضویت یا دادهٔ موجودی خودکار حذف نمی‌شود؛ پس از آن، اسکریپت فقط UUID حساب انتخاب‌شده را ثبت می‌کند.
+runner پیش از درج عضویت، وجود دقیقاً یک حساب Auth تأییدشده با آن ایمیل، پروفایل فعال و نبود عضویت مدیرِ دیگر را بررسی می‌کند. اگر هر شرط برقرار نباشد، بدون حذف داده متوقف می‌شود. تا وقتی تعداد عضویت‌ها دقیقاً یک نباشد، `is_admin()` عمداً برای همه false برمی‌گرداند و پنل fail-closed است. پس از provision، می‌توانید secret ایمیل را حذف کنید؛ در اجرای عادی migration خوانده نمی‌شود.
 
 بعد از اعمال migration و provision کردن حساب، از `./admin.html` با همان حساب وارد شوید. این صفحه ثبت‌نام ندارد؛ حتی ورود موفق Supabase Auth تا وقتی RPC پایگاه داده عضویت مدیر و فعال‌بودن حساب را تأیید نکند، داشبورد را باز نمی‌کند.
 
@@ -262,7 +257,6 @@ Barino/
 ├── supabase_schema.sql                     # Schema کامل و migration پنل مدیریت
 ├── supabase/
 │   ├── migrations/                         # migrationهای افزایشی و قابل اعمال با Supabase CLI
-│   ├── admin-provisioning.example.sql      # provision مدیر توسط مالک، بدون مقدار پیش‌فرض
 │   └── README.md                           # راهنمای اجرای SQL
 └── .github/workflows/deploy-supabase-schema.yml
 ```
