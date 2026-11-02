@@ -106,14 +106,3 @@ grant execute on function public.submit_freight_offer(uuid,bigint,text) to authe
 grant execute on function public.accept_freight_offer(uuid) to authenticated;
 grant execute on function public.change_shipment_status(uuid,public.load_status,text) to authenticated;
 grant execute on function public.get_shipment_private_details(uuid) to authenticated;
-
--- ایجاد اولین مدیر (فقط پس از آنکه کاربر از طریق Auth ثبت‌نام کرد، در SQL Editor مالک اجرا شود):
--- insert into public.app_admins (user_id) values ('UUID-کاربر-مدیر');
--- هیچ راهی در فرانت‌اند برای اجرای دستور بالا وجود ندارد.
-
--- چک‌های دستی پیشنهادی RLS (با دو حساب تست جداگانه اجرا کنید):
--- 1) راننده A نباید بتواند select از profiles برای کاربر نامرتبط یا load_private_details یک بار باز انجام دهد.
--- 2) صاحب بار B نباید بتواند select/update پیشنهاد یا بار صاحب بار C را انجام دهد.
--- 3) راننده نباید بتواند update مستقیم loads یا insert مستقیم freight_offers انجام دهد.
--- 4) هم‌زمان accept_freight_offer را برای دو پیشنهاد یک بار اجرا کنید: تنها یکی باید سفارش بسازد.
--- 5) کاربر عادی نباید بتواند select از app_admins یا با update profiles نقش مدیر بگیرد.

@@ -13,7 +13,7 @@
   const TRUCKS = ['نیسان بار','خاور','تک','جفت','تریلی کفی','تریلی چادری','تریلی یخچالی','تانکر','کمپرسی','بوژی'];
   const CARGO_TYPES = ['عمومی','مصالح ساختمانی','کشاورزی','مواد غذایی','یخچالی','صنعتی','مایعات','اثاثیه','خطرناک'];
   const EMAIL_COOLDOWN_STORAGE_KEY = 'barino.emailCooldownUntil';
-  const state = { client: null, session: null, user: null, profile: null, isAdmin: false, route: 'home', authTab: 'login', signupRole: 'driver', pendingEmail: '', emailCooldownUntil: 0, emailCooldownTimer: null, online: navigator.onLine, initialized: false };
+  const state = { client: null, session: null, user: null, profile: null, isAdmin: false, route: 'home', authTab: 'login', signupRole: 'driver', pendingEmail: '', emailCooldownUntil: 0, emailCooldownTimer: null, admin: { tab: 'overview', usersPage: 1, loadsPage: 1, userFilters: { search: '', role: '', status: 'all' }, loadFilters: { search: '', status: '' } }, online: navigator.onLine, initialized: false };
 
   const icons = {
     truck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h11v11H3z"/><path d="M14 8h4l3 3v5h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
@@ -63,6 +63,7 @@
     if (/duplicate|unique/i.test(raw)) return 'این مورد قبلاً ثبت شده است.';
     if (/network|fetch/i.test(raw)) return 'ارتباط با اینترنت یا سرور برقرار نشد. دوباره تلاش کنید.';
     if (/حساب شما فعال نیست|account.*not.*active|blocked/i.test(raw)) return 'حساب شما فعال نیست یا توسط مدیر مسدود شده است.';
+    if (/admin_(dashboard_summary|list_users|get_user_details|set_user_blocked|list_loads|get_load_details|set_load_status)|schema cache/i.test(raw)) return 'امکانات جدید پنل مدیریت هنوز در دیتابیس اعمال نشده‌اند. migration پنل مدیریت را از GitHub Actions اجرا کنید.';
     if (/permission|row-level|policy|not authorized|access denied/i.test(raw)) return 'شما اجازه انجام این عملیات را ندارید.';
     if (/not configured/i.test(raw)) return 'تنظیمات Supabase وارد نشده است.';
     return raw ? `عملیات انجام نشد: ${raw}` : 'عملیات انجام نشد. لطفاً دوباره تلاش کنید.';
@@ -425,37 +426,123 @@
   }
 
   function renderAdmin() {
-    main.innerHTML = `${networkNotice()}<div class="page-head"><div><h1>مدیریت سامانه</h1><p class="subtitle">دسترسی مدیریت با بررسی امن سمت پایگاه داده تأیید شده است.</p></div><span class="badge">${icon('shield')} مدیر</span></div><div class="admin-nav" role="tablist"><button class="active" data-admin-tab="overview">نمای کلی</button><button data-admin-tab="users">کاربران</button><button data-admin-tab="loads">بارها</button><button data-admin-tab="shipments">سفارش‌ها</button><button data-admin-tab="reports">گزارش‌ها</button></div><div id="admin-result">${skeletons(3)}</div>`;
-    loadAdmin('overview');
+    const tabs = [
+      ['overview','داشبورد','chart'], ['users','کاربران','user'], ['loads','بارها','box'],
+      ['shipments','سفارش‌ها','clipboard'], ['reports','گزارش‌ها','alert'], ['settings','تنظیمات','shield']
+    ];
+    main.innerHTML = `${networkNotice()}<div class="page-head admin-page-head"><div><span class="kicker">مدیریت امن</span><h1>مرکز مدیریت سامانه</h1><p class="subtitle">داده‌ها و عملیات حساس در هر درخواست توسط Supabase بررسی می‌شوند.</p></div><span class="badge">${icon('shield')} مدیر تأییدشده</span></div><section class="admin-layout"><aside class="admin-sidebar" aria-label="بخش‌های مدیریت">${tabs.map(([id,label,ic]) => `<button type="button" class="admin-tab ${state.admin.tab === id ? 'active' : ''}" data-admin-tab="${id}">${icon(ic)}<span>${label}</span></button>`).join('')}</aside><section class="admin-content"><div id="admin-result" aria-live="polite">${skeletons(4)}</div></section></section>`;
+    loadAdmin(state.admin.tab);
   }
-  async function loadAdmin(tab) {
-    const target = $('#admin-result'); if (!target) return; target.innerHTML = skeletons(3);
+
+  function adminPagination(kind, page, total, pageSize = 15) {
+    const pages = Math.max(1, Math.ceil(Number(total || 0) / pageSize));
+    if (!total) return '';
+    const label = `صفحه ${faNumber(page)} از ${faNumber(pages)} · ${faNumber(total)} مورد`;
+    return `<div class="admin-pagination"><button type="button" class="button ghost small" data-admin-page-kind="${kind}" data-admin-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>قبلی</button><span>${label}</span><button type="button" class="button ghost small" data-admin-page-kind="${kind}" data-admin-page="${page + 1}" ${page >= pages ? 'disabled' : ''}>بعدی</button></div>`;
+  }
+
+  function adminActivityIcon(kind) { return ({ user_created: icon('user'), load_created: icon('box'), shipment_status: icon('truck'), report_created: icon('alert'), user_blocked: icon('lock'), user_unblocked: icon('check'), load_status_changed: icon('refresh') })[kind] || icon('clipboard'); }
+  function adminLoadStatusOptions(selected, hasShipment) {
+    const statuses = hasShipment ? ['agreed','awaiting_pickup','in_transit','delivered','cancelled'] : ['published','receiving_offers','cancelled'];
+    return statuses.map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${statusLabel(status)}</option>`).join('');
+  }
+
+  function renderAdminOverview(data) {
+    const metrics = data?.metrics || {};
+    const cards = [
+      ['total_users','کاربر',icon('user')], ['drivers','راننده',icon('truck')], ['cargo_owners','صاحب بار',icon('box')], ['blocked_users','حساب مسدود',icon('lock')],
+      ['total_loads','بار ثبت‌شده',icon('clipboard')], ['active_loads','بار فعال',icon('refresh')], ['active_shipments','سفارش جاری',icon('truck')], ['open_reports','گزارش باز',icon('alert')]
+    ];
+    const activity = Array.isArray(data?.recent_activity) ? data.recent_activity : [];
+    return `<div class="admin-metrics">${cards.map(([key,label,ic]) => `<article class="stat-card"><div class="stat-icon">${ic}</div><strong class="stat-num">${faNumber(metrics[key] || 0)}</strong><span class="stat-label">${label}</span></article>`).join('')}</div><section class="card section"><div class="section-title"><div><span class="kicker">از دیتابیس واقعی</span><h2>آخرین فعالیت‌ها</h2></div><button type="button" class="text-link" data-admin-tab="overview">به‌روزرسانی</button></div>${activity.length ? `<div class="admin-activity">${activity.map(item => `<article class="admin-activity-item"><span class="activity-icon">${adminActivityIcon(item.kind)}</span><div><strong>${esc(item.title || 'فعالیت سامانه')}</strong><p>${esc(item.detail || '')}</p><time>${dateFa(item.created_at, true)}</time></div></article>`).join('')}</div>` : emptyHTML('فعالیتی برای نمایش نیست','پس از ثبت کاربر، بار، گزارش یا اقدام مدیریتی، رویدادها اینجا نشان داده می‌شوند.',null,null)}</section><section class="notice info section">${icon('shield')}<p>آمار و فعالیت‌ها از RPC محافظت‌شده خوانده می‌شوند؛ حساب مسدود یا کاربر عادی حتی با دست‌کاری رابط به این داده‌ها دسترسی ندارد.</p></section>`;
+  }
+
+  function renderAdminUsers(data, filters, page) {
+    const users = Array.isArray(data) ? data : [];
+    const total = Number(users[0]?.total_count || 0);
+    return `<section class="admin-toolbar card"><div><span class="kicker">مدیریت کاربران</span><h2>کاربران و وضعیت حساب</h2><p class="muted">جست‌وجوی ایمیل فقط در RPC محافظت‌شده مدیر انجام می‌شود.</p></div><form id="admin-users-filter" class="admin-filter-form" novalidate><input class="input" name="search" maxlength="100" value="${esc(filters.search)}" placeholder="نام، ایمیل یا موبایل"><select name="role"><option value="">همه نقش‌ها</option><option value="driver" ${filters.role === 'driver' ? 'selected' : ''}>راننده</option><option value="cargo_owner" ${filters.role === 'cargo_owner' ? 'selected' : ''}>صاحب بار</option></select><select name="status"><option value="all" ${filters.status === 'all' ? 'selected' : ''}>همه وضعیت‌ها</option><option value="active" ${filters.status === 'active' ? 'selected' : ''}>فعال</option><option value="blocked" ${filters.status === 'blocked' ? 'selected' : ''}>مسدود</option></select><button type="submit" class="button secondary">${icon('search')} جست‌وجو</button></form></section>${users.length ? `<div class="table-list admin-list">${users.map(user => `<article class="table-row admin-row"><div class="admin-row-main"><div class="admin-user-mark">${esc((user.display_name || user.email || 'ب').slice(0,1))}</div><div><strong>${esc(user.display_name || 'پروفایل تکمیل نشده')}</strong><p dir="ltr">${esc(user.email || '—')}</p><div class="meta-row"><span>${roleLabel(user.role)}</span><span>${esc(user.city || 'بدون شهر')}</span><span>${faNumber(user.load_count)} بار</span>${user.role === 'driver' ? `<span>${faNumber(user.offer_count)} پیشنهاد</span>` : ''}</div></div></div><div class="admin-row-actions"><span class="status ${user.is_blocked ? 'cancelled' : 'delivered'}">${user.is_blocked ? 'مسدود' : 'فعال'}</span><button type="button" class="button ghost small" data-admin-user-detail="${esc(user.id)}">جزئیات</button><button type="button" class="button ${user.is_blocked ? 'secondary' : 'danger'} small" data-admin-user-block="${esc(user.id)}" data-current-blocked="${user.is_blocked ? '1' : '0'}" ${user.id === state.user?.id ? 'disabled title="حساب فعلی را نمی‌توان مسدود کرد"' : ''}>${user.is_blocked ? 'فعال‌سازی' : 'مسدودسازی'}</button></div></article>`).join('')}</div>${adminPagination('users', page, total)}` : emptyHTML('کاربری با این فیلتر پیدا نشد','عبارت جست‌وجو یا فیلترها را تغییر دهید.',null,null)}`;
+  }
+
+  function renderAdminLoads(data, filters, page) {
+    const loads = Array.isArray(data) ? data : [];
+    const total = Number(loads[0]?.total_count || 0);
+    return `<section class="admin-toolbar card"><div><span class="kicker">مدیریت بارها</span><h2>همه بارهای ثبت‌شده</h2><p class="muted">حذف فیزیکی بار انجام نمی‌شود؛ بار نامعتبر به‌صورت امن غیرفعال می‌شود.</p></div><form id="admin-loads-filter" class="admin-filter-form" novalidate><input class="input" name="search" maxlength="100" value="${esc(filters.search)}" placeholder="عنوان، مسیر، نام یا ایمیل صاحب بار"><select name="status"><option value="">همه وضعیت‌ها</option>${['published','receiving_offers','agreed','awaiting_pickup','in_transit','delivered','cancelled'].map(status => `<option value="${status}" ${filters.status === status ? 'selected' : ''}>${statusLabel(status)}</option>`).join('')}</select><button type="submit" class="button secondary">${icon('search')} جست‌وجو</button></form></section>${loads.length ? `<div class="table-list admin-list">${loads.map(load => `<article class="table-row admin-row"><div class="admin-row-main"><div class="admin-load-mark">${icon('box')}</div><div><strong>${esc(load.title)}</strong><p>${esc(load.origin_city)} ← ${esc(load.destination_city)} · ${fare(load.proposed_fare)}</p><div class="meta-row"><span>صاحب بار: ${esc(load.owner_name || 'تکمیل نشده')}</span><span dir="ltr">${esc(load.owner_email || '')}</span><span>${faNumber(load.offer_count)} پیشنهاد</span></div></div></div><div class="admin-row-actions"><span class="status ${esc(load.status)}">${statusLabel(load.status)}</span><button type="button" class="button ghost small" data-admin-load-detail="${esc(load.id)}">جزئیات</button>${load.status !== 'cancelled' ? `<button type="button" class="button danger small" data-admin-load-deactivate="${esc(load.id)}">غیرفعال‌سازی</button>` : ''}</div></article>`).join('')}</div>${adminPagination('loads', page, total)}` : emptyHTML('باری با این فیلتر پیدا نشد','عنوان، مسیر یا وضعیت را تغییر دهید.',null,null)}`;
+  }
+
+  function renderAdminSettings() {
+    return `<section class="card admin-settings"><span class="kicker">تنظیمات و مرز دسترسی</span><h2>حساب مدیریت</h2><div class="detail-grid"><div class="detail-cell"><span>حساب واردشده</span><strong dir="ltr">${esc(state.user?.email || '—')}</strong></div><div class="detail-cell"><span>وضعیت بررسی</span><strong>مدیر فعال و تأییدشده</strong></div></div><div class="notice info section">${icon('shield')}<p>این پنل امکان ساخت مدیر جدید، تغییر نقش کاربر یا نمایش رازهای Supabase را ندارد. مدیر فقط با درج مورد اعتماد در جدول خصوصی <code>app_admins</code> تعیین می‌شود.</p></div><div class="notice warning section">${icon('alert')}<p>مسدودسازی کاربر و تغییر وضعیت بار، علاوه بر تأیید نهایی در رابط، در RPC سمت دیتابیس با بررسی <code>is_admin()</code> و <code>is_active_user()</code> اعتبارسنجی می‌شوند.</p></div></section>`;
+  }
+
+  async function loadAdmin(tab = state.admin.tab, options = {}) {
+    if (!state.isAdmin) return;
+    state.admin.tab = tab;
+    document.querySelectorAll('[data-admin-tab]').forEach(button => button.classList.toggle('active', button.dataset.adminTab === tab));
+    const target = $('#admin-result'); if (!target) return;
+    target.innerHTML = skeletons(4);
     try {
       if (tab === 'overview') {
-        const results = await Promise.all([
-          state.client.from('profiles').select('*',{count:'exact',head:true}),
-          state.client.from('loads').select('*',{count:'exact',head:true}),
-          state.client.from('shipments').select('*',{count:'exact',head:true}).in('status',['agreed','awaiting_pickup','in_transit']),
-          state.client.from('shipments').select('*',{count:'exact',head:true}).eq('status','delivered'),
-          state.client.from('reports').select('*',{count:'exact',head:true}).eq('status','open')
-        ]); const error = results.find(x=>x.error)?.error; if(error) throw error;
-        target.innerHTML = `<div class="stats-grid">${results.map((x,i)=>`<article class="stat-card"><div class="stat-icon">${[icon('user'),icon('box'),icon('truck'),icon('chart'),icon('alert')][i]}</div><strong class="stat-num">${faNumber(x.count || 0)}</strong><span class="stat-label">${['کاربران','بارهای ثبت‌شده','سفارش‌های جاری','تحویل‌شده','گزارش باز'][i]}</span></article>`).join('')}</div><section class="card section"><h2>یادآوری امنیتی</h2><p class="muted">تنها مدیرانی که در جدول محافظت‌شده <code>app_admins</code> ثبت شده‌اند این بخش را می‌بینند. نقش مدیر هرگز از پروفایل قابل ویرایش نیست.</p></section>`;
+        const { data, error } = await state.client.rpc('admin_dashboard_summary'); if (error) throw error;
+        target.innerHTML = renderAdminOverview(data);
       } else if (tab === 'users') {
-        const {data,error}=await state.client.from('profiles').select('id,display_name,phone,role,truck_type,is_blocked,created_at').order('created_at',{ascending:false}).limit(80); if(error) throw error;
-        target.innerHTML = adminList(data, p => `<div class="table-row"><div><strong>${esc(p.display_name || 'تکمیل نشده')}</strong><p>${roleLabel(p.role)} · ${esc(p.phone || 'بدون شماره')} ${p.truck_type ? '· '+esc(p.truck_type) : ''}</p></div><button class="button ${p.is_blocked ? 'secondary' : 'danger'} small" type="button" data-toggle-block="${esc(p.id)}" data-blocked="${p.is_blocked ? '1':'0'}">${p.is_blocked ? 'رفع مسدودی' : 'مسدودسازی'}</button></div>`, 'کاربری برای نمایش نیست');
+        const filters = options.filters || state.admin.userFilters;
+        const page = Number(options.page || state.admin.usersPage || 1);
+        state.admin.userFilters = filters; state.admin.usersPage = page;
+        const { data, error } = await state.client.rpc('admin_list_users', { p_search: filters.search || null, p_role: filters.role || null, p_status: filters.status || 'all', p_page: page, p_page_size: 15 }); if (error) throw error;
+        target.innerHTML = renderAdminUsers(data, filters, page);
       } else if (tab === 'loads') {
-        const {data,error}=await state.client.from('loads').select('*').order('created_at',{ascending:false}).limit(80); if(error) throw error;
-        target.innerHTML = adminList(data, x => `<div class="table-row"><div><strong>${esc(x.title)}</strong><p>${esc(x.origin_city)} ← ${esc(x.destination_city)} · ${statusLabel(x.status)} · ${dateFa(x.created_at)}</p></div><span class="status ${esc(x.status)}">${statusLabel(x.status)}</span></div>`, 'باری برای نمایش نیست');
+        const filters = options.filters || state.admin.loadFilters;
+        const page = Number(options.page || state.admin.loadsPage || 1);
+        state.admin.loadFilters = filters; state.admin.loadsPage = page;
+        const { data, error } = await state.client.rpc('admin_list_loads', { p_search: filters.search || null, p_status: filters.status || null, p_page: page, p_page_size: 15 }); if (error) throw error;
+        target.innerHTML = renderAdminLoads(data, filters, page);
       } else if (tab === 'shipments') {
-        const {data,error}=await state.client.from('shipments').select('*,loads(title,origin_city,destination_city)').order('created_at',{ascending:false}).limit(80); if(error) throw error;
+        const { data, error } = await state.client.from('shipments').select('*,loads(title,origin_city,destination_city)').order('created_at',{ascending:false}).limit(80); if (error) throw error;
         target.innerHTML = adminList(data, x => `<div class="table-row"><div><strong>${esc(x.loads?.title || 'سفارش')}</strong><p>${esc(x.loads?.origin_city||'—')} ← ${esc(x.loads?.destination_city||'—')} · ${dateFa(x.created_at)}</p></div><span class="status ${esc(x.status)}">${statusLabel(x.status)}</span></div>`, 'سفارشی برای نمایش نیست');
-      } else {
-        const {data,error}=await state.client.from('reports').select('*').order('created_at',{ascending:false}).limit(80); if(error) throw error;
+      } else if (tab === 'reports') {
+        const { data, error } = await state.client.from('reports').select('*').order('created_at',{ascending:false}).limit(80); if (error) throw error;
         target.innerHTML = adminList(data, x => `<div class="table-row"><div><strong>${esc(x.subject || 'گزارش')}</strong><p>${esc(x.description)} · ${dateFa(x.created_at)}</p></div>${x.status === 'open' ? `<button class="button secondary small" type="button" data-resolve-report="${esc(x.id)}">مختومه</button>` : `<span class="status delivered">مختومه</span>`}</div>`, 'گزارش بازی برای نمایش نیست');
+      } else if (tab === 'settings') {
+        target.innerHTML = renderAdminSettings();
       }
-    } catch(error) { target.innerHTML = `<div class="notice danger">${icon('alert')}<p>${esc(humanError(error))}</p></div>`; }
+    } catch (error) { target.innerHTML = `<div class="notice danger">${icon('alert')}<p>${esc(humanError(error))}</p></div>`; }
   }
   function adminList(data, mapper, empty) { return data?.length ? `<div class="table-list">${data.map(mapper).join('')}</div>` : emptyHTML(empty,'',null,null); }
+
+  async function openAdminUserDetails(id) {
+    showModal(`<div class="modal-head"><h2>جزئیات کاربر</h2><button class="modal-close" type="button" data-close-modal aria-label="بستن">×</button></div>${skeletons(2)}`);
+    try {
+      const { data, error } = await state.client.rpc('admin_get_user_details', { p_user_id: id }); if (error) throw error;
+      const loads = Array.isArray(data.recent_loads) ? data.recent_loads : [];
+      modalRoot.querySelector('.modal').innerHTML = `<div class="modal-head"><h2>جزئیات کاربر</h2><button class="modal-close" type="button" data-close-modal aria-label="بستن">×</button></div><section class="detail-hero"><span class="status ${data.is_blocked ? 'cancelled' : 'delivered'}">${data.is_blocked ? 'مسدود' : 'فعال'}</span><h2>${esc(data.display_name || 'پروفایل تکمیل نشده')}</h2><p class="muted" dir="ltr">${esc(data.email || '—')}</p></section><div class="detail-grid"><div class="detail-cell"><span>نقش</span><strong>${roleLabel(data.role)}</strong></div><div class="detail-cell"><span>موبایل</span><strong dir="ltr">${esc(data.phone || '—')}</strong></div><div class="detail-cell"><span>شهر</span><strong>${esc(data.city || '—')}</strong></div><div class="detail-cell"><span>کامیون</span><strong>${esc(data.truck_type || '—')}</strong></div><div class="detail-cell"><span>بار ثبت‌شده</span><strong>${faNumber(data.load_count)}</strong></div><div class="detail-cell"><span>پیشنهاد / سفارش</span><strong>${faNumber(data.offer_count)} / ${faNumber(data.shipment_count)}</strong></div></div>${data.role === 'driver' ? `<section class="card section"><h3>مشخصات کامیون</h3><p class="muted">مدل: ${esc(data.truck_model || '—')}<br>پلاک: ${esc(data.plate_number || '—')}</p></section>` : ''}<section class="card section"><h3>بارهای اخیر این کاربر</h3>${loads.length ? `<div class="compact-list">${loads.map(load => `<div><strong>${esc(load.title)}</strong><span>${esc(load.origin_city)} ← ${esc(load.destination_city)} · ${statusLabel(load.status)}</span></div>`).join('')}</div>` : '<p class="muted">باری ثبت نشده است.</p>'}</section>`;
+    } catch (error) { modalRoot.querySelector('.modal').innerHTML = `<div class="notice danger">${icon('alert')}<p>${esc(humanError(error))}</p></div>`; }
+  }
+
+  async function openAdminLoadDetails(id) {
+    showModal(`<div class="modal-head"><h2>جزئیات مدیریتی بار</h2><button class="modal-close" type="button" data-close-modal aria-label="بستن">×</button></div>${skeletons(2)}`);
+    try {
+      const { data, error } = await state.client.rpc('admin_get_load_details', { p_load_id: id }); if (error) throw error;
+      const load = data.load || {}; const owner = data.owner || {}; const details = data.private_details; const offers = Array.isArray(data.offers) ? data.offers : []; const shipment = data.shipment;
+      modalRoot.querySelector('.modal').innerHTML = `<div class="modal-head"><h2>جزئیات مدیریتی بار</h2><button class="modal-close" type="button" data-close-modal aria-label="بستن">×</button></div><section class="detail-hero"><span class="status ${esc(load.status)}">${statusLabel(load.status)}</span><h2>${esc(load.title || 'بار')}</h2><div class="route"><span>${esc(load.origin_city || '—')}</span><span class="arrow">←</span><span>${esc(load.destination_city || '—')}</span></div></section><section class="card section"><h3>صاحب بار</h3><p class="muted">${esc(owner.display_name || 'تکمیل نشده')}<br><span dir="ltr">${esc(owner.email || '—')}</span><br><span dir="ltr">${esc(owner.phone || '—')}</span>${owner.is_blocked ? '<br><strong>این حساب مسدود است.</strong>' : ''}</p></section><div class="detail-grid"><div class="detail-cell"><span>کالا</span><strong>${esc(load.cargo_type || '—')}</strong></div><div class="detail-cell"><span>وزن</span><strong>${faNumber(load.weight_value)} ${esc(load.weight_unit || '')}</strong></div><div class="detail-cell"><span>خودروی لازم</span><strong>${esc(load.required_truck_type || '—')}</strong></div><div class="detail-cell"><span>کرایه پیشنهادی</span><strong>${fare(load.proposed_fare)}</strong></div><div class="detail-cell"><span>تاریخ بارگیری</span><strong>${dateFa(load.loading_date)}</strong></div><div class="detail-cell"><span>سفارش حمل</span><strong>${shipment ? statusLabel(shipment.status) : 'ایجاد نشده'}</strong></div></div>${details ? `<section class="card section"><h3>${icon('location')} اطلاعات خصوصی مسیر</h3><p class="muted">بارگیری: ${esc(details.pickup_address)}<br>تخلیه: ${esc(details.delivery_address)}</p></section>` : ''}<section class="card section"><h3>پیشنهادها</h3>${offers.length ? `<div class="compact-list">${offers.map(offer => `<div><strong>${esc(offer.driver_name || 'راننده')}</strong><span>${fare(offer.offered_fare)} · ${statusLabel(offer.status)} · ${esc(offer.truck_type || 'کامیون ثبت نشده')}</span></div>`).join('')}</div>` : '<p class="muted">پیشنهادی ثبت نشده است.</p>'}</section><form id="admin-load-status-form" class="form-grid section" data-load-id="${esc(load.id)}"><section class="card"><span class="kicker">اقدام مدیریتی ثبت‌شونده</span><h3>تغییر وضعیت بار</h3><div class="field"><label>وضعیت جدید</label><select name="load_status">${adminLoadStatusOptions(load.status, Boolean(shipment))}</select></div><div class="field"><label>دلیل اقدام (اختیاری، حداکثر ۵۰۰ کاراکتر)</label><textarea name="reason" maxlength="500" placeholder="برای ثبت در گزارش فعالیت مدیریتی"></textarea></div><button type="submit" class="button danger full">ثبت تغییر وضعیت</button></section></form>`;
+    } catch (error) { modalRoot.querySelector('.modal').innerHTML = `<div class="notice danger">${icon('alert')}<p>${esc(humanError(error))}</p></div>`; }
+  }
+
+  async function adminSetUserBlocked(id, currentlyBlocked) {
+    const action = currentlyBlocked ? 'فعال‌سازی' : 'مسدودسازی';
+    if (!confirm(`از ${action} این حساب مطمئن هستید؟ این اقدام در گزارش فعالیت مدیریت ثبت می‌شود.`)) return;
+    try {
+      const { error } = await state.client.rpc('admin_set_user_blocked', { p_user_id: id, p_blocked: !currentlyBlocked }); if (error) throw error;
+      toast(currentlyBlocked ? 'حساب کاربر فعال شد.' : 'حساب کاربر مسدود شد.', 'success');
+      loadAdmin('users');
+    } catch (error) { toast(humanError(error), 'error'); }
+  }
+
+  async function adminSetLoadStatus(id, status, reason = '') {
+    if (!confirm(`وضعیت بار به «${statusLabel(status)}» تغییر کند؟ این اقدام قابل ثبت در تاریخچه و گزارش مدیریت است.`)) return;
+    try {
+      const { error } = await state.client.rpc('admin_set_load_status', { p_load_id: id, p_new_status: status, p_reason: reason.trim() || null }); if (error) throw error;
+      closeModal(); toast('وضعیت بار با موفقیت تغییر کرد.', 'success'); loadAdmin('loads');
+    } catch (error) { toast(humanError(error), 'error'); }
+  }
 
   function showModal(content) { modalRoot.innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal" role="dialog" aria-modal="true">${content}</section></div>`; const first = modalRoot.querySelector('input,textarea,select,button'); first?.focus(); }
   function closeModal() { modalRoot.innerHTML = ''; }
@@ -573,6 +660,21 @@
       }catch(e){toast(humanError(e),'error');setBusy(button,false);}
       return;
     }
+    if (form.id === 'admin-users-filter') {
+      const f = new FormData(form);
+      await loadAdmin('users', { page: 1, filters: { search: String(f.get('search') || '').trim(), role: String(f.get('role') || ''), status: String(f.get('status') || 'all') } });
+      return;
+    }
+    if (form.id === 'admin-loads-filter') {
+      const f = new FormData(form);
+      await loadAdmin('loads', { page: 1, filters: { search: String(f.get('search') || '').trim(), status: String(f.get('status') || '') } });
+      return;
+    }
+    if (form.id === 'admin-load-status-form') {
+      const f = new FormData(form);
+      await adminSetLoadStatus(form.dataset.loadId, String(f.get('load_status') || ''), String(f.get('reason') || ''));
+      return;
+    }
     if(form.id === 'profile-form') { await saveProfile(form); return; }
     if(form.id === 'create-load-form') { await createLoad(form); return; }
     if(form.id === 'edit-load-form') { await updateLoad(form); return; }
@@ -623,8 +725,12 @@
     if(target.dataset.cancelLoad){await cancelLoad(target.dataset.cancelLoad);return;}
     if(target.dataset.acceptOffer){await acceptOffer(target.dataset.acceptOffer);return;}
     if(target.dataset.shipmentStatus){await changeShipmentStatus(target.dataset.shipmentStatus,target.dataset.nextStatus);return;}
-    if(target.dataset.adminTab){document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b===target));loadAdmin(target.dataset.adminTab);return;}
-    if(target.dataset.toggleBlock){await toggleBlock(target.dataset.toggleBlock,target.dataset.blocked==='1');return;}
+    if(target.dataset.adminTab){await loadAdmin(target.dataset.adminTab);return;}
+    if(target.dataset.adminUserDetail){await openAdminUserDetails(target.dataset.adminUserDetail);return;}
+    if(target.dataset.adminUserBlock){await adminSetUserBlocked(target.dataset.adminUserBlock,target.dataset.currentBlocked==='1');return;}
+    if(target.dataset.adminLoadDetail){await openAdminLoadDetails(target.dataset.adminLoadDetail);return;}
+    if(target.dataset.adminLoadDeactivate){await adminSetLoadStatus(target.dataset.adminLoadDeactivate,'cancelled','غیرفعال‌سازی بار نامعتبر توسط مدیر');return;}
+    if(target.dataset.adminPageKind){const page=Number(target.dataset.adminPage);if(!Number.isInteger(page)||page<1)return;if(target.dataset.adminPageKind==='users')await loadAdmin('users',{page});else if(target.dataset.adminPageKind==='loads')await loadAdmin('loads',{page});return;}
     if(target.dataset.resolveReport){await resolveReport(target.dataset.resolveReport);return;}
   });
   document.addEventListener('submit', onSubmit);
@@ -672,8 +778,7 @@
   async function cancelLoad(id){if(!confirm('از لغو این بار مطمئن هستید؟ پس از توافق امکان لغو از این مسیر وجود ندارد.'))return;try{const {error}=await state.client.from('loads').update({status:'cancelled'}).eq('id',id);if(error)throw error;closeModal();toast('بار لغو شد.','success');render();}catch(e){toast(humanError(e),'error');}}
   async function acceptOffer(id){if(!confirm('با پذیرش این پیشنهاد، سفارش حمل ایجاد و سایر پیشنهادها مختومه می‌شوند. ادامه می‌دهید؟'))return;try{const {error}=await state.client.rpc('accept_freight_offer',{p_offer_id:id});if(error)throw error;toast('پیشنهاد پذیرفته و سفارش حمل ایجاد شد.','success');navigate('shipments');}catch(e){toast(humanError(e),'error');}}
   async function changeShipmentStatus(id,next){const labels={awaiting_pickup:'آماده بارگیری',in_transit:'در حال حمل',delivered:'تحویل‌شده'};if(!confirm(`وضعیت سفارش به «${labels[next]}» تغییر کند؟`))return;try{const {error}=await state.client.rpc('change_shipment_status',{p_shipment_id:id,p_new_status:next,p_note:null});if(error)throw error;closeModal();toast('وضعیت سفارش به‌روزرسانی شد.','success');render();}catch(e){toast(humanError(e),'error');}}
-  async function toggleBlock(id,blocked){if(!confirm(blocked?'مسدودی این کاربر برداشته شود؟':'کاربر مسدود شود؟'))return;try{const {error}=await state.client.from('profiles').update({is_blocked:!blocked}).eq('id',id);if(error)throw error;toast(blocked?'مسدودی کاربر برداشته شد.':'کاربر مسدود شد.','success');loadAdmin('users');}catch(e){toast(humanError(e),'error');}}
-  async function resolveReport(id){try{const {error}=await state.client.from('reports').update({status:'resolved',resolved_at:new Date().toISOString(),resolved_by:state.user.id}).eq('id',id);if(error)throw error;toast('گزارش مختومه شد.','success');loadAdmin('reports');}catch(e){toast(humanError(e),'error');}}
+  async function resolveReport(id){if(!confirm('از مختومه‌کردن این گزارش مطمئن هستید؟ این اقدام در سوابق گزارش ثبت می‌شود.'))return;try{const {error}=await state.client.from('reports').update({status:'resolved',resolved_at:new Date().toISOString(),resolved_by:state.user.id}).eq('id',id);if(error)throw error;toast('گزارش مختومه شد.','success');loadAdmin('reports');}catch(e){toast(humanError(e),'error');}}
 
   init();
 })();
