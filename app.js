@@ -61,6 +61,7 @@
     if (/Password should be at least|weak password/i.test(raw)) return 'رمز عبور انتخاب‌شده با سیاست امنیتی مجاز نیست.';
     if (/duplicate|unique/i.test(raw)) return 'این مورد قبلاً ثبت شده است.';
     if (/network|fetch/i.test(raw)) return 'ارتباط با اینترنت یا سرور برقرار نشد. دوباره تلاش کنید.';
+    if (/حساب شما فعال نیست|account.*not.*active|blocked/i.test(raw)) return 'حساب شما فعال نیست یا توسط مدیر مسدود شده است.';
     if (/permission|row-level|policy|not authorized|access denied/i.test(raw)) return 'شما اجازه انجام این عملیات را ندارید.';
     if (/not configured/i.test(raw)) return 'تنظیمات Supabase وارد نشده است.';
     return raw ? `عملیات انجام نشد: ${raw}` : 'عملیات انجام نشد. لطفاً دوباره تلاش کنید.';

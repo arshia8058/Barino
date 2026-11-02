@@ -1,3 +1,4 @@
+
 -- RPC اتمیک ثبت بار و نشانی خصوصی.
 create or replace function public.create_load_with_private_details(p_payload jsonb)
 returns uuid
@@ -12,7 +13,7 @@ declare
   v_loading date;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
-  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
+  if not public.is_active_user() then raise exception 'حساب شما فعال نیست یا ایمیل آن تأیید نشده است'; end if;
   if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'cargo_owner' and not p.is_blocked) then
     raise exception 'فقط صاحب بار فعال می‌تواند بار ثبت کند';
   end if;
@@ -49,7 +50,7 @@ declare
   v_offer_id uuid;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
-  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
+  if not public.is_active_user() then raise exception 'حساب شما فعال نیست یا ایمیل آن تأیید نشده است'; end if;
   if p_offered_fare is null or p_offered_fare <= 0 or coalesce(length(p_note),0) > 1000 then raise exception 'پیشنهاد معتبر نیست'; end if;
   if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'driver' and not p.is_blocked and p.display_name is not null and p.phone is not null and p.truck_type is not null) then
     raise exception 'پروفایل راننده باید کامل و فعال باشد';
@@ -82,7 +83,7 @@ declare
   v_shipment_id uuid;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
-  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
+  if not public.is_active_user() then raise exception 'حساب شما فعال نیست یا ایمیل آن تأیید نشده است'; end if;
   select * into v_offer from public.freight_offers where id = p_offer_id for update;
   if not found or v_offer.status <> 'submitted' then raise exception 'این پیشنهاد قابل پذیرش نیست'; end if;
   select * into v_load from public.loads where id = v_offer.load_id for update;
