@@ -12,6 +12,7 @@
   const CITY_LIST = ['تهران','کرج','قزوین','قم','سمنان','زنجان','رشت','ساری','گرگان','اردبیل','تبریز','ارومیه','سنندج','همدان','اراک','اصفهان','یزد','شیراز','بوشهر','بندرعباس','کیش','اهواز','خرم‌آباد','کرمانشاه','ایلام','شهرکرد','یاسوج','کرمان','زاهدان','بیرجند','مشهد','بجنورد','اردبیل'];
   const TRUCKS = ['نیسان بار','خاور','تک','جفت','تریلی کفی','تریلی چادری','تریلی یخچالی','تانکر','کمپرسی','بوژی'];
   const CARGO_TYPES = ['عمومی','مصالح ساختمانی','کشاورزی','مواد غذایی','یخچالی','صنعتی','مایعات','اثاثیه','خطرناک'];
+  const EMAIL_COOLDOWN_STORAGE_KEY = 'barino.emailCooldownUntil';
   const state = { client: null, session: null, user: null, profile: null, isAdmin: false, route: 'home', authTab: 'login', signupRole: 'driver', pendingEmail: '', emailCooldownUntil: 0, emailCooldownTimer: null, online: navigator.onLine, initialized: false };
 
   const icons = {
@@ -94,18 +95,49 @@
     return { session: result.data?.session || null, error: result.error || null, intent };
   }
   function emailIsConfirmed(user) { return Boolean(user?.email_confirmed_at); }
-  function emailCooldownSeconds() { return Math.max(0, Math.ceil((state.emailCooldownUntil - Date.now()) / 1000)); }
-  function beginEmailCooldown(seconds = 60) {
-    state.emailCooldownUntil = Date.now() + (seconds * 1000);
+  function readEmailCooldown() {
+    try {
+      const until = Number(window.sessionStorage.getItem(EMAIL_COOLDOWN_STORAGE_KEY));
+      return Number.isFinite(until) && until > Date.now() ? until : 0;
+    } catch (_) { return 0; }
+  }
+  function clearEmailCooldown() {
+    state.emailCooldownUntil = 0;
     window.clearTimeout(state.emailCooldownTimer);
-    state.emailCooldownTimer = window.setTimeout(() => {
-      state.emailCooldownUntil = 0;
-      if (state.authTab === 'check-email' || state.authTab === 'recovery-sent') renderAuth();
-    }, seconds * 1000);
+    state.emailCooldownTimer = null;
+    try { window.sessionStorage.removeItem(EMAIL_COOLDOWN_STORAGE_KEY); } catch (_) { /* storage ممکن است در حالت خصوصی در دسترس نباشد. */ }
+  }
+  function emailCooldownSeconds() {
+    const seconds = Math.max(0, Math.ceil((state.emailCooldownUntil - Date.now()) / 1000));
+    if (!seconds && state.emailCooldownUntil) clearEmailCooldown();
+    return seconds;
+  }
+  function refreshEmailCooldownButton() {
+    const seconds = emailCooldownSeconds();
+    const button = $('[data-email-cooldown]');
+    if (button) {
+      button.disabled = seconds > 0;
+      button.textContent = seconds ? `ارسال دوباره تا ${faNumber(seconds)} ثانیه دیگر` : button.dataset.resendLabel;
+    }
+    return seconds;
+  }
+  function scheduleEmailCooldownRefresh() {
+    window.clearTimeout(state.emailCooldownTimer);
+    if (!refreshEmailCooldownButton()) return;
+    state.emailCooldownTimer = window.setTimeout(scheduleEmailCooldownRefresh, 1000);
+  }
+  function restoreEmailCooldown() {
+    state.emailCooldownUntil = readEmailCooldown();
+    if (state.emailCooldownUntil) scheduleEmailCooldownRefresh();
+  }
+  function beginEmailCooldown(seconds = 60) {
+    state.emailCooldownUntil = Date.now() + (Math.max(0, Number(seconds) || 0) * 1000);
+    try { window.sessionStorage.setItem(EMAIL_COOLDOWN_STORAGE_KEY, String(state.emailCooldownUntil)); } catch (_) { /* محدودسازی سمت Supabase همچنان معتبر است. */ }
+    scheduleEmailCooldownRefresh();
   }
   function resendButton(action, label) {
     const seconds = emailCooldownSeconds();
-    return `<button type="button" class="button primary full auth-submit" data-action="${action}" ${seconds ? 'disabled' : ''}>${seconds ? `ارسال دوباره تا ${faNumber(seconds)} ثانیه دیگر` : label}</button>`;
+    return `<button type="button" class="button primary full auth-submit" data-action="${action}" data-email-cooldown data-resend-label="${esc(label)}" ${seconds ? 'disabled' : ''}>${seconds ? `ارسال دوباره تا ${faNumber(seconds)} ثانیه دیگر` : label}</button>`;
   }
   function profileReady() { return !!(state.profile?.display_name && state.profile?.phone && (state.profile.role !== 'driver' || state.profile.truck_type)); }
   function cityOptions() { return CITY_LIST.map(city => `<option value="${esc(city)}"></option>`).join(''); }
@@ -132,7 +164,11 @@
   }
 
   async function init() {
+    restoreEmailCooldown();
     renderShell();
+    // در موبایل، زمان‌سنج‌های پس‌زمینه ممکن است متوقف شوند؛ با بازگشت به صفحه، زمان واقعی دوباره محاسبه می‌شود.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleEmailCooldownRefresh(); });
+    window.addEventListener('pageshow', () => { scheduleEmailCooldownRefresh(); });
     window.addEventListener('online', () => { state.online = true; render(); toast('اتصال اینترنت برقرار شد.', 'success'); });
     window.addEventListener('offline', () => { state.online = false; render(); });
     const hashRoute = location.hash.replace(/^#/, '');
