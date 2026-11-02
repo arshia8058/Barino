@@ -7,7 +7,7 @@ as $$
 declare v_shipment public.shipments%rowtype;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
-  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
+  if not public.is_active_user() then raise exception 'حساب شما فعال نیست یا ایمیل آن تأیید نشده است'; end if;
   if coalesce(length(p_note),0) > 1000 then raise exception 'توضیح وضعیت طولانی است'; end if;
   select * into v_shipment from public.shipments where id = p_shipment_id for update;
   if not found then raise exception 'سفارش پیدا نشد'; end if;
@@ -44,7 +44,7 @@ as $$
 declare v_load public.loads%rowtype; v_weight numeric; v_fare bigint; v_date date;
 begin
   if auth.uid() is null then raise exception 'ورود به حساب الزامی است'; end if;
-  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
+  if not public.is_active_user() then raise exception 'حساب شما فعال نیست یا ایمیل آن تأیید نشده است'; end if;
   select * into v_load from public.loads where id = p_load_id for update;
   if not found or v_load.owner_id <> auth.uid() or v_load.status not in ('published','receiving_offers') then raise exception 'ویرایش این بار مجاز نیست'; end if;
   v_weight := (p_payload->>'weight_value')::numeric; v_fare := (p_payload->>'proposed_fare')::bigint; v_date := (p_payload->>'loading_date')::date;
@@ -63,7 +63,7 @@ set search_path = public
 as $$
 declare v_shipment public.shipments%rowtype; v_other uuid;
 begin
-  if not public.is_confirmed_user() then raise exception 'ابتدا ایمیل خود را تأیید کنید'; end if;
+  if not public.is_active_user() then raise exception 'حساب شما فعال نیست یا ایمیل آن تأیید نشده است'; end if;
   select * into v_shipment from public.shipments where id = p_shipment_id;
   if not found or not (public.is_admin() or auth.uid() = v_shipment.owner_id or auth.uid() = v_shipment.driver_id) then raise exception 'دسترسی به اطلاعات خصوصی مجاز نیست'; end if;
   v_other := case when auth.uid() = v_shipment.owner_id then v_shipment.driver_id else v_shipment.owner_id end;
@@ -74,6 +74,20 @@ end;
 $$;
 
 -- سطح دسترسی SQL. کلاینت فقط عملیات لازم را دارد؛ نوشتن حساس فقط از RPCهاست.
+-- پیش‌فرض PostgreSQL برای EXECUTE روی functionها public است؛ آن را صریحاً می‌بندیم.
+revoke all on function public.is_admin() from public, anon;
+revoke all on function public.is_confirmed_user() from public, anon;
+revoke all on function public.is_active_user() from public, anon;
+revoke all on function public.create_load_with_private_details(jsonb) from public, anon;
+revoke all on function public.update_load_with_private_details(uuid,jsonb) from public, anon;
+revoke all on function public.submit_freight_offer(uuid,bigint,text) from public, anon;
+revoke all on function public.accept_freight_offer(uuid) from public, anon;
+revoke all on function public.change_shipment_status(uuid,public.load_status,text) from public, anon;
+revoke all on function public.get_shipment_private_details(uuid) from public, anon;
+revoke all on table public.profiles, public.loads, public.load_private_details, public.freight_offers, public.shipments, public.shipment_status_history, public.reports from public, anon;
+revoke all on public.driver_public_profiles from public, anon;
+revoke all on table public.app_admins from public, anon, authenticated;
+
 grant usage on schema public to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select on public.driver_public_profiles to authenticated;
@@ -85,13 +99,13 @@ grant select on public.shipment_status_history to authenticated;
 grant select, insert, update on public.reports to authenticated;
 grant execute on function public.is_admin() to authenticated;
 grant execute on function public.is_confirmed_user() to authenticated;
+grant execute on function public.is_active_user() to authenticated;
 grant execute on function public.create_load_with_private_details(jsonb) to authenticated;
 grant execute on function public.update_load_with_private_details(uuid,jsonb) to authenticated;
 grant execute on function public.submit_freight_offer(uuid,bigint,text) to authenticated;
 grant execute on function public.accept_freight_offer(uuid) to authenticated;
 grant execute on function public.change_shipment_status(uuid,public.load_status,text) to authenticated;
 grant execute on function public.get_shipment_private_details(uuid) to authenticated;
-revoke all on table public.app_admins from anon, authenticated;
 
 -- ایجاد اولین مدیر (فقط پس از آنکه کاربر از طریق Auth ثبت‌نام کرد، در SQL Editor مالک اجرا شود):
 -- insert into public.app_admins (user_id) values ('UUID-کاربر-مدیر');

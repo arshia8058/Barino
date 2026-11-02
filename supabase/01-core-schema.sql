@@ -148,12 +148,25 @@ as $$
   );
 $$;
 
+-- یک حساب مسدودشده حتی با نشست معتبر نیز به داده‌ها و عملیات تجاری دسترسی ندارد.
+create or replace function public.is_active_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select public.is_confirmed_user() and exists (
+    select 1 from public.profiles p where p.id = auth.uid() and not p.is_blocked
+  );
+$$;
+
 -- یک public profile امن برای مقایسه پیشنهادها؛ شماره، پلاک و آدرس در آن نیست.
 create or replace view public.driver_public_profiles
 with (security_invoker = false) as
   select id, display_name, truck_type, truck_model
   from public.profiles
-  where role = 'driver' and is_blocked = false and public.is_confirmed_user();
+  where role = 'driver' and is_blocked = false and public.is_active_user();
 
 -- هنگام ثبت‌نام، نقش فقط راننده یا صاحب بار است. مدیر هرگز از user metadata ساخته نمی‌شود.
 create or replace function public.handle_new_user()
