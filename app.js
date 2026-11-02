@@ -54,6 +54,7 @@
     const raw = String(error?.message || error || '');
     if (/Invalid login credentials/i.test(raw)) return 'ایمیل یا رمز عبور درست نیست.';
     if (/Email not confirmed|EMAIL_VERIFICATION_REQUIRED/i.test(raw)) return 'ابتدا ایمیل خود را تأیید کنید؛ سپس وارد شوید.';
+    if (/code verifier|exchange.*code|invalid.*code|otp.*expired|token.*expired/i.test(raw)) return 'لینک تأیید یا بازیابی معتبر نیست یا منقضی شده است. یک لینک جدید درخواست کنید.';
     if (/EMAIL_CONFIRMATION_NOT_ENFORCED/i.test(raw)) return 'تأیید ایمیل در Supabase فعال نشده است. در Authentication → Sign In / Providers آن را فعال و ذخیره کنید.';
     if (/User already registered/i.test(raw)) return 'اگر قبلاً حساب ساخته‌اید، وارد شوید یا لینک تأیید را دوباره ارسال کنید.';
     if (/rate limit|over_email_send_rate_limit/i.test(raw)) return 'درخواست‌های ایمیل زیاد بوده است؛ چند دقیقه صبر کنید و دوباره تلاش کنید.';
@@ -69,9 +70,27 @@
   function roleLabel(role) { return role === 'driver' ? 'راننده' : 'صاحب بار'; }
   function isConfigured() { const c = window.BARINO_SUPABASE_CONFIG; return !!(c && /^https:\/\//.test(c.url || '') && c.anonKey && !String(c.url).includes('YOUR_') && !String(c.anonKey).includes('YOUR_')); }
   // مسیر redirect را از URL واقعی مرورگر می‌سازیم تا GitHub Pages زیرشاخهٔ /rimou/ را از دست ندهد.
-  function authRedirectUrl() {
+  function authRedirectUrl(destination = 'auth') {
     const path = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
-    return `${window.location.origin}${path}#auth`;
+    return `${window.location.origin}${path}#${destination}`;
+  }
+  // callbackهای PKCE و implicit را خودمان مصرف می‌کنیم؛ این کار در GitHub Pages از از‌دست‌رفتن code جلوگیری می‌کند.
+  async function consumeAuthCallback(client) {
+    const url = new URL(window.location.href);
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const intent = window.location.hash.replace(/^#/, '') === 'reset-password' ? 'recovery' : 'signin';
+    const code = url.searchParams.get('code');
+    const accessToken = fragment.get('access_token');
+    const refreshToken = fragment.get('refresh_token');
+    const callbackError = url.searchParams.get('error_description') || fragment.get('error_description');
+    if (callbackError) return { error: new Error(callbackError), intent };
+    let result = null;
+    if (code) result = await client.auth.exchangeCodeForSession(code);
+    else if (accessToken && refreshToken) result = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    if (!result) return { session: null, intent: null };
+    // token و code را از URL پاک می‌کنیم تا در history، اسکرین‌شات و ارجاع‌دهنده باقی نمانند.
+    history.replaceState(null, '', `${url.pathname}${url.hash === '#reset-password' ? '#reset-password' : '#auth'}`);
+    return { session: result.data?.session || null, error: result.error || null, intent };
   }
   function emailIsConfirmed(user) { return Boolean(user?.email_confirmed_at); }
   function emailCooldownSeconds() { return Math.max(0, Math.ceil((state.emailCooldownUntil - Date.now()) / 1000)); }
@@ -122,10 +141,22 @@
     try {
       if (!window.supabase?.createClient) throw new Error('کتابخانه Supabase بارگذاری نشد');
       const { url, anonKey } = window.BARINO_SUPABASE_CONFIG;
-      state.client = window.supabase.createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-      const { data, error } = await state.client.auth.getSession();
+      state.client = window.supabase.createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'pkce' } });
+      const callback = await consumeAuthCallback(state.client);
+      if (callback.error) throw callback.error;
+      const { data, error } = callback.session ? { data: { session: callback.session }, error: null } : await state.client.auth.getSession();
       if (error) throw error;
-      await setSession(data.session);
+      if (callback.intent === 'recovery' && data.session) {
+        state.session = data.session;
+        state.user = data.session.user;
+        state.route = 'auth';
+        state.authTab = 'recovery';
+        renderShell();
+        render();
+      } else {
+        await setSession(data.session);
+        if (callback.intent === 'signin' && data.session) toast('ایمیل شما با موفقیت تأیید شد.','success');
+      }
       state.client.auth.onAuthStateChange(async (event, session) => {
         if (event === 'PASSWORD_RECOVERY') { state.session = session; state.user = session?.user || null; state.route = 'auth'; state.authTab = 'recovery'; render(); return; }
         if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') await setSession(session);
@@ -556,7 +587,7 @@
     const button=$('[type="submit"]',form);setBusy(button,true);
     try{
       const email=new FormData(form).get('email').trim().toLowerCase();
-      const {error}=await state.client.auth.resetPasswordForEmail(email,{redirectTo:authRedirectUrl()});
+      const {error}=await state.client.auth.resetPasswordForEmail(email,{redirectTo:authRedirectUrl('reset-password')});
       if(error)throw error;
       state.pendingEmail=email;
       beginEmailCooldown();
@@ -570,7 +601,7 @@
     const seconds=emailCooldownSeconds(); if(seconds){toast(`برای ارسال دوباره ${faNumber(seconds)} ثانیه صبر کنید.`,'info');return;}
     setBusy(button,true);
     try{
-      const {error}=await state.client.auth.resetPasswordForEmail(state.pendingEmail,{redirectTo:authRedirectUrl()});
+      const {error}=await state.client.auth.resetPasswordForEmail(state.pendingEmail,{redirectTo:authRedirectUrl('reset-password')});
       if(error)throw error;
       beginEmailCooldown();
       renderAuth();
