@@ -78,7 +78,7 @@
   async function consumeAuthCallback(client) {
     const url = new URL(window.location.href);
     const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const intent = window.location.hash.replace(/^#/, '') === 'reset-password' ? 'recovery' : 'signin';
+    const intent = window.location.hash.replace(/^#/, '') === 'reset-password' || fragment.get('type') === 'recovery' ? 'recovery' : 'signin';
     const code = url.searchParams.get('code');
     const accessToken = fragment.get('access_token');
     const refreshToken = fragment.get('refresh_token');
@@ -147,18 +147,13 @@
       const { data, error } = callback.session ? { data: { session: callback.session }, error: null } : await state.client.auth.getSession();
       if (error) throw error;
       if (callback.intent === 'recovery' && data.session) {
-        state.session = data.session;
-        state.user = data.session.user;
-        state.route = 'auth';
-        state.authTab = 'recovery';
-        renderShell();
-        render();
+        await enterRecoverySession(data.session);
       } else {
         await setSession(data.session);
         if (callback.intent === 'signin' && data.session) toast('ایمیل شما با موفقیت تأیید شد.','success');
       }
       state.client.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'PASSWORD_RECOVERY') { state.session = session; state.user = session?.user || null; state.route = 'auth'; state.authTab = 'recovery'; render(); return; }
+        if (event === 'PASSWORD_RECOVERY') { await enterRecoverySession(session); return; }
         if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') await setSession(session);
       });
     } catch (error) { toast(humanError(error), 'error'); }
@@ -183,6 +178,21 @@
       await checkAdmin();
     }
     if (!state.user && ['create-load','offers','shipments','profile','admin'].includes(state.route)) state.route = 'home';
+    renderShell();
+    render();
+  }
+  async function enterRecoverySession(session) {
+    if (!session) { state.authTab = 'login'; renderAuth(); return; }
+    // نشست بازیابی هم باید همان بررسی ایمیل و بارگذاری پروفایل نشست عادی را داشته باشد.
+    if (!emailIsConfirmed(session.user)) { await setSession(session); return; }
+    state.session = session;
+    state.user = session.user;
+    state.profile = null;
+    state.isAdmin = false;
+    await loadProfile();
+    await checkAdmin();
+    state.route = 'auth';
+    state.authTab = 'recovery';
     renderShell();
     render();
   }
