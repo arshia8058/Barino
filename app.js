@@ -60,14 +60,26 @@
     if (/User already registered/i.test(raw)) return 'اگر قبلاً حساب ساخته‌اید، وارد شوید یا لینک تأیید را دوباره ارسال کنید.';
     if (/rate limit|over_email_send_rate_limit/i.test(raw)) return 'درخواست‌های ایمیل زیاد بوده است؛ چند دقیقه صبر کنید و دوباره تلاش کنید.';
     if (/Password should be at least|weak password/i.test(raw)) return 'رمز عبور انتخاب‌شده با سیاست امنیتی مجاز نیست.';
-    if (/duplicate|unique/i.test(raw)) return 'این مورد قبلاً ثبت شده است.';
-    if (/network|fetch/i.test(raw)) return 'ارتباط با اینترنت یا سرور برقرار نشد. دوباره تلاش کنید.';
+    if (/duplicate|unique|23505/i.test(raw)) return 'این مورد قبلاً ثبت شده است.';
+    if (/برای جلوگیری از سوءاستفاده/i.test(raw)) return 'برای جلوگیری از سوءاستفاده، لطفاً چند دقیقه بعد دوباره تلاش کنید.';
+    if (/اطلاعات (بار|ارسالی بار)|واحد وزن|وزن، کرایه یا تاریخ بارگیری|پیشنهاد معتبر|پروفایل راننده|این بار برای پیشنهاد باز نیست|نمی‌توانید برای بار خود پیشنهاد بدهید|این پیشنهاد قابل پذیرش نیست|بار دیگر برای توافق باز نیست|سفارش پیدا نشد|تغییر وضعیت سفارش معتبر نیست|ویرایش این بار مجاز نیست|لغو این بار مجاز نیست|بار نامعتبر|جزئیات خصوصی بار پیدا نشد/i.test(raw)) return 'اطلاعات یا وضعیت فعلی برای این عملیات معتبر نیست. داده‌ها را تازه‌سازی و دوباره تلاش کنید.';
+    if (/network|fetch|timeout/i.test(raw)) return 'ارتباط با اینترنت یا سرور برقرار نشد. دوباره تلاش کنید.';
     if (/حساب شما فعال نیست|account.*not.*active|blocked/i.test(raw)) return 'حساب شما فعال نیست یا توسط مدیر مسدود شده است.';
-    if (/permission|row-level|policy|not authorized|access denied/i.test(raw)) return 'شما اجازه انجام این عملیات را ندارید.';
+    if (/permission|row-level|policy|not authorized|access denied|42501/i.test(raw)) return 'شما اجازه انجام این عملیات را ندارید.';
     if (/not configured/i.test(raw)) return 'تنظیمات Supabase وارد نشده است.';
-    return raw ? `عملیات انجام نشد: ${raw}` : 'عملیات انجام نشد. لطفاً دوباره تلاش کنید.';
+    return 'عملیات انجام نشد. لطفاً اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.';
   }
-  function normalizeDigits(value) { return String(value || '').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٬,]/g, ''); }
+  function asciiDigits(value) {
+    return String(value || '')
+      .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+      .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  }
+  function normalizeDigits(value) {
+    return asciiDigits(value).replace(/[٬,]/g, '').replace(/٫/g, '.');
+  }
+  // Phone formatting is deliberately narrower than number formatting: only whitespace and
+  // hyphens are presentation separators. Other characters remain invalid rather than vanishing.
+  function normalizePhone(value) { return asciiDigits(value).replace(/[\s-]/g, ''); }
   function statusLabel(status) { return ({ published:'منتشرشده', receiving_offers:'در حال دریافت پیشنهاد', agreed:'توافق‌شده', awaiting_pickup:'در انتظار بارگیری', in_transit:'در حال حمل', delivered:'تحویل‌شده', cancelled:'لغوشده', submitted:'ارسال‌شده', accepted:'پذیرفته‌شده', rejected:'ردشده', declined:'مختومه' })[status] || status || '—'; }
   function roleLabel(role) { return role === 'driver' ? 'راننده' : 'صاحب بار'; }
   function isConfigured() { const c = window.BARINO_SUPABASE_CONFIG; return !!(c && /^https:\/\//.test(c.url || '') && c.anonKey && !String(c.url).includes('YOUR_') && !String(c.anonKey).includes('YOUR_')); }
@@ -139,7 +151,7 @@
     const seconds = emailCooldownSeconds();
     return `<button type="button" class="button primary full auth-submit" data-action="${action}" data-email-cooldown data-resend-label="${esc(label)}" ${seconds ? 'disabled' : ''}>${seconds ? `ارسال دوباره تا ${faNumber(seconds)} ثانیه دیگر` : label}</button>`;
   }
-  function profileReady() { return !!(state.profile?.display_name && state.profile?.phone && (state.profile.role !== 'driver' || state.profile.truck_type)); }
+  function profileReady() { return !!(state.profile?.display_name && state.profile?.phone && !phoneValid(state.profile.phone) && (state.profile.role !== 'driver' || state.profile.truck_type)); }
   function cityOptions() { return CITY_LIST.map(city => `<option value="${esc(city)}"></option>`).join(''); }
   function truckOptions(selected = '') { return `<option value="">انتخاب کنید</option>${TRUCKS.map(x => `<option value="${esc(x)}" ${x === selected ? 'selected' : ''}>${esc(x)}</option>`).join('')}`; }
   function cargoOptions(selected = '') { return `<option value="">انتخاب کنید</option>${CARGO_TYPES.map(x => `<option value="${esc(x)}" ${x === selected ? 'selected' : ''}>${esc(x)}</option>`).join('')}`; }
@@ -432,7 +444,7 @@
 
   function renderProfile(forceComplete = false) {
     const p = state.profile || {}; const driver = p.role === 'driver';
-    main.innerHTML = `${networkNotice()}<div class="page-head"><div><h1>${forceComplete ? 'تکمیل پروفایل' : 'حساب کاربری'}</h1><p class="subtitle">${forceComplete ? 'برای استفاده از امکانات، اطلاعات ضروری را کامل کنید.' : 'اطلاعات تماس و مشخصات خودرو را مدیریت کنید.'}</p></div></div>${!profileReady() ? `<div class="notice warning">${icon('alert')}<p>تا تکمیل نام، شماره تماس${driver ? ' و نوع کامیون' : ''}، عملیات اصلی حساب فعال نمی‌شود.</p></div>` : ''}<form id="profile-form" class="form-grid" novalidate><section class="card"><div class="profile-summary"><div class="avatar">${esc((p.display_name || state.user?.email || 'ب').slice(0,1))}</div><div><h2>${esc(p.display_name || 'کاربر بارینو')}</h2><p class="muted">${roleLabel(p.role)} · ${esc(state.user?.email || '')}</p></div></div><div class="divider"></div><div class="form-grid"><div class="field"><label for="display-name">نام و نام خانوادگی <span class="required">*</span></label><input id="display-name" class="input" name="display_name" maxlength="100" required value="${esc(p.display_name || '')}" placeholder="نام کامل"><span class="field-error"></span></div><div class="field"><label for="phone">شماره موبایل ایران <span class="required">*</span></label><input id="phone" class="input" name="phone" inputmode="tel" autocomplete="tel" required value="${esc(p.phone || '')}" placeholder="۰۹۱۲۱۲۳۴۵۶۷"><small>برای طرف سفارش، فقط بعد از توافق قابل مشاهده است.</small><span class="field-error"></span></div><div class="field"><label for="profile-city">شهر محل فعالیت</label><input id="profile-city" class="input" name="city" list="iran-cities" value="${esc(p.city || '')}" placeholder="مثلاً تهران"></div></div></section>${driver ? `<section class="card"><span class="kicker">مشخصات کامیون</span><div class="form-grid" style="margin-top:12px"><div class="field"><label for="profile-truck">نوع کامیون <span class="required">*</span></label><select id="profile-truck" name="truck_type" required>${truckOptions(p.truck_type)}</select><span class="field-error"></span></div><div class="form-grid two"><div class="field"><label for="truck-model">مدل یا برند</label><input id="truck-model" class="input" name="truck_model" maxlength="100" value="${esc(p.truck_model || '')}" placeholder="مثلاً ولوو FH"></div><div class="field"><label for="plate-number">پلاک</label><input id="plate-number" class="input" name="plate_number" maxlength="30" value="${esc(p.plate_number || '')}" placeholder="خصوصی"></div></div></div></section>` : ''}<div class="form-actions"><button type="submit" class="button primary">ذخیره اطلاعات</button></div></form>${!forceComplete ? `<section class="card section"><h2>امنیت حساب</h2><p class="muted">برای خروج از حساب فقط روی دستگاه شخصی اقدام کنید.</p><div class="action-row"><button type="button" class="button ghost" data-action="forgot-password">تغییر رمز عبور</button><button type="button" class="button danger" data-action="signout">${icon('logout')} خروج از حساب</button></div></section><section class="card section"><h2>گزارش مشکل</h2><p class="muted">در صورت تخلف یا شکایت مرتبط با سفارش، گزارش را برای بررسی مدیر سامانه ثبت کنید.</p><button type="button" class="button secondary" data-open-report="">ثبت گزارش</button></section>` : ''}<datalist id="iran-cities">${cityOptions()}</datalist>`;
+    main.innerHTML = `${networkNotice()}<div class="page-head"><div><h1>${forceComplete ? 'تکمیل پروفایل' : 'حساب کاربری'}</h1><p class="subtitle">${forceComplete ? 'برای استفاده از امکانات، اطلاعات ضروری را کامل کنید.' : 'اطلاعات تماس و مشخصات خودرو را مدیریت کنید.'}</p></div></div>${!profileReady() ? `<div class="notice warning">${icon('alert')}<p>تا تکمیل نام، شماره تماس${driver ? ' و نوع کامیون' : ''}، عملیات اصلی حساب فعال نمی‌شود.</p></div>` : ''}<form id="profile-form" class="form-grid" novalidate><section class="card"><div class="profile-summary"><div class="avatar">${esc((p.display_name || state.user?.email || 'ب').slice(0,1))}</div><div><h2>${esc(p.display_name || 'کاربر بارینو')}</h2><p class="muted">${roleLabel(p.role)} · ${esc(state.user?.email || '')}</p></div></div><div class="divider"></div><div class="form-grid"><div class="field"><label for="display-name">نام و نام خانوادگی <span class="required">*</span></label><input id="display-name" class="input" name="display_name" maxlength="100" required value="${esc(p.display_name || '')}" placeholder="نام کامل"><span class="field-error"></span></div><div class="field"><label for="phone">شماره موبایل ایران <span class="required">*</span></label><input id="phone" class="input" name="phone" inputmode="tel" autocomplete="tel" maxlength="20" required value="${esc(p.phone || '')}" placeholder="۰۹۱۲۱۲۳۴۵۶۷"><small>قالب مجاز: ۰۹۱۲…، +۹۸۹۱۲… یا ۰۰۹۸۹۱۲…؛ فقط برای طرف سفارش پس از توافق نمایش داده می‌شود.</small><span class="field-error"></span></div><div class="field"><label for="profile-city">شهر محل فعالیت</label><input id="profile-city" class="input" name="city" list="iran-cities" value="${esc(p.city || '')}" placeholder="مثلاً تهران"></div></div></section>${driver ? `<section class="card"><span class="kicker">مشخصات کامیون</span><div class="form-grid" style="margin-top:12px"><div class="field"><label for="profile-truck">نوع کامیون <span class="required">*</span></label><select id="profile-truck" name="truck_type" required>${truckOptions(p.truck_type)}</select><span class="field-error"></span></div><div class="form-grid two"><div class="field"><label for="truck-model">مدل یا برند</label><input id="truck-model" class="input" name="truck_model" maxlength="100" value="${esc(p.truck_model || '')}" placeholder="مثلاً ولوو FH"></div><div class="field"><label for="plate-number">پلاک</label><input id="plate-number" class="input" name="plate_number" maxlength="30" value="${esc(p.plate_number || '')}" placeholder="خصوصی"></div></div></div></section>` : ''}<div class="form-actions"><button type="submit" class="button primary">ذخیره اطلاعات</button></div></form>${!forceComplete ? `<section class="card section"><h2>امنیت حساب</h2><p class="muted">برای خروج از حساب فقط روی دستگاه شخصی اقدام کنید.</p><div class="action-row"><button type="button" class="button ghost" data-action="forgot-password">تغییر رمز عبور</button><button type="button" class="button danger" data-action="signout">${icon('logout')} خروج از حساب</button></div></section><section class="card section"><h2>گزارش مشکل</h2><p class="muted">در صورت تخلف یا شکایت مرتبط با سفارش، گزارش را برای بررسی مدیر سامانه ثبت کنید.</p><button type="button" class="button secondary" data-open-report="">ثبت گزارش</button></section>` : ''}<datalist id="iran-cities">${cityOptions()}</datalist>`;
   }
 
 
@@ -484,12 +496,44 @@
   function clearFormErrors(form) { form.querySelectorAll('.field-error').forEach(x => x.textContent = ''); form.querySelectorAll('[aria-invalid]').forEach(x => x.removeAttribute('aria-invalid')); }
   function formValid(form, rules = {}) {
     clearFormErrors(form); let okay = true; let first;
-    form.querySelectorAll('[required]').forEach(input => { let message = ''; const value = input.value.trim(); if(!value) message='تکمیل این بخش الزامی است.'; else if(input.type==='email' && !/^\S+@\S+\.\S+$/.test(value)) message='ایمیل معتبر وارد کنید.'; else if(input.minLength>0 && value.length<input.minLength) message=`حداقل ${faNumber(input.minLength)} کاراکتر وارد کنید.`; else if(rules[input.name]) message=rules[input.name](value) || ''; if(message) { okay=false; input.setAttribute('aria-invalid','true'); const err=input.closest('.field')?.querySelector('.field-error'); if(err) err.textContent=message; first ||= input; } });
+    const invalidate = (input, message) => {
+      okay = false; input.setAttribute('aria-invalid','true');
+      const err = input.closest('.field')?.querySelector('.field-error');
+      if (err) err.textContent = message;
+      first ||= input;
+    };
+    form.querySelectorAll('[required]').forEach(input => {
+      const value = input.value.trim(); let message = '';
+      if (!value) message = 'تکمیل این بخش الزامی است.';
+      else if (input.type === 'email' && !/^\S+@\S+\.\S+$/.test(value)) message = 'ایمیل معتبر وارد کنید.';
+      else if (input.minLength > 0 && value.length < input.minLength) message = `حداقل ${faNumber(input.minLength)} کاراکتر وارد کنید.`;
+      else if (rules[input.name]) message = rules[input.name](value) || '';
+      if (message) invalidate(input, message);
+    });
+    form.querySelectorAll('[maxlength]').forEach(input => {
+      const value = input.value.trim();
+      if (value && input.maxLength > 0 && value.length > input.maxLength) invalidate(input, `حداکثر ${faNumber(input.maxLength)} کاراکتر وارد کنید.`);
+    });
     if (!okay) { first?.focus(); toast('لطفاً خطاهای فرم را اصلاح کنید.','error'); }
     return okay;
   }
-  function phoneValid(v) { return /^(?:\+98|0098|0)?9\d{9}$/.test(normalizeDigits(v).replace(/[\s-]/g,'')) ? '' : 'شماره موبایل ایران را درست وارد کنید.'; }
-  function positiveNumber(v, message = 'مقدار معتبر و بزرگ‌تر از صفر وارد کنید.') { const n=Number(normalizeDigits(v)); return Number.isFinite(n) && n>0 ? '' : message; }
+  function phoneValid(v) {
+    return /^(?:09[0-9]{9}|\+989[0-9]{9}|00989[0-9]{9})$/.test(normalizePhone(v))
+      ? '' : 'شماره موبایل را با یکی از قالب‌های ۰۹، +۹۸۹ یا ۰۰۹۸۹ وارد کنید.';
+  }
+  function positiveNumber(v, message = 'مقدار معتبر و بزرگ‌تر از صفر وارد کنید.') {
+    const value = normalizeDigits(v).trim();
+    if (!/^[0-9]+(?:\.[0-9]{1,2})?$/.test(value)) return message;
+    const [whole] = value.split('.');
+    const wholeWithoutLeadingZeros = whole.replace(/^0+/, '') || '0';
+    const withinDatabaseLimit = wholeWithoutLeadingZeros.length < 10
+      || (wholeWithoutLeadingZeros.length === 10 && wholeWithoutLeadingZeros <= '9999999999');
+    return withinDatabaseLimit && /[1-9]/.test(value) ? '' : message;
+  }
+  function positiveInteger(v, message = 'مبلغ معتبر و بزرگ‌تر از صفر وارد کنید.') {
+    const value = normalizeDigits(v).trim();
+    return /^[0-9]{1,18}$/.test(value) && /[1-9]/.test(value) ? '' : message;
+  }
   function strongPasswordValid(value) { return /[A-Za-zآ-ی]/.test(value) && /\d/.test(value) ? '' : 'رمز باید دست‌کم یک حرف و یک عدد داشته باشد.'; }
   function showFieldError(form, name, message) { const input = form.elements[name]; if (!input) return; input.setAttribute('aria-invalid','true'); input.closest('.field')?.querySelector('.field-error')?.replaceChildren(document.createTextNode(message)); input.focus(); }
   function passwordsMatch(form) { const password = String(form.elements.password?.value || ''); const confirmation = String(form.elements.password_confirmation?.value || ''); if (password === confirmation) return true; showFieldError(form,'password_confirmation','تکرار رمز با رمز عبور یکسان نیست.'); toast('لطفاً تکرار رمز عبور را اصلاح کنید.','error'); return false; }
@@ -561,19 +605,19 @@
     if(form.id === 'report-form') { await submitReport(form); return; }
   }
   async function saveProfile(form) {
-    if(!formValid(form,{phone:phoneValid}))return; const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form); const payload={display_name:f.get('display_name').trim(),phone:normalizeDigits(f.get('phone')).replace(/[\s-]/g,''),city:f.get('city').trim()||null};if(state.profile.role==='driver')Object.assign(payload,{truck_type:f.get('truck_type'),truck_model:f.get('truck_model').trim()||null,plate_number:f.get('plate_number').trim()||null});const {error}=await state.client.from('profiles').update(payload).eq('id',state.user.id);if(error)throw error;await loadProfile();toast('پروفایل با موفقیت ذخیره شد.','success');navigate('home');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
+    if(!formValid(form,{phone:phoneValid}))return; const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form); const payload={display_name:f.get('display_name').trim(),phone:normalizePhone(f.get('phone')),city:f.get('city').trim()||null};if(state.profile.role==='driver')Object.assign(payload,{truck_type:f.get('truck_type'),truck_model:f.get('truck_model').trim()||null,plate_number:f.get('plate_number').trim()||null});const {error}=await state.client.from('profiles').update(payload).eq('id',state.user.id);if(error)throw error;await loadProfile();toast('پروفایل با موفقیت ذخیره شد.','success');navigate('home');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
   }
   async function createLoad(form) {
-    const rules={weight_value:v=>positiveNumber(v,'وزن معتبر و بزرگ‌تر از صفر وارد کنید.'),proposed_fare:v=>positiveNumber(v,'کرایه باید بزرگ‌تر از صفر باشد.')}; if(!formValid(form,rules)) return; const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form); const payload={title:f.get('title').trim(),cargo_description:f.get('cargo_description').trim()||null,cargo_type:f.get('cargo_type'),required_truck_type:f.get('required_truck_type'),weight_value:Number(normalizeDigits(f.get('weight_value'))),weight_unit:f.get('weight_unit'),origin_city:f.get('origin_city').trim(),destination_city:f.get('destination_city').trim(),pickup_address:f.get('pickup_address').trim(),delivery_address:f.get('delivery_address').trim(),loading_date:f.get('loading_date'),proposed_fare:Number(normalizeDigits(f.get('proposed_fare'))),notes:f.get('notes').trim()||null};const {data,error}=await state.client.rpc('create_load_with_private_details',{p_payload:payload});if(error)throw error;toast('بار با موفقیت ثبت و منتشر شد.','success');navigate('offers');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
+    const rules={weight_value:v=>positiveNumber(v,'وزن معتبر و بزرگ‌تر از صفر وارد کنید.'),proposed_fare:v=>positiveInteger(v,'کرایه باید به‌صورت عدد صحیح و بزرگ‌تر از صفر وارد شود.')}; if(!formValid(form,rules)) return; const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form); const payload={title:f.get('title').trim(),cargo_description:f.get('cargo_description').trim()||null,cargo_type:f.get('cargo_type'),required_truck_type:f.get('required_truck_type'),weight_value:normalizeDigits(f.get('weight_value')).trim(),weight_unit:f.get('weight_unit'),origin_city:f.get('origin_city').trim(),destination_city:f.get('destination_city').trim(),pickup_address:f.get('pickup_address').trim(),delivery_address:f.get('delivery_address').trim(),loading_date:f.get('loading_date'),proposed_fare:normalizeDigits(f.get('proposed_fare')).trim(),notes:f.get('notes').trim()||null};const {data,error}=await state.client.rpc('create_load_with_private_details',{p_payload:payload});if(error)throw error;toast('بار با موفقیت ثبت و منتشر شد.','success');navigate('offers');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
   }
   async function updateLoad(form) {
-    const rules={weight_value:v=>positiveNumber(v,'وزن معتبر و بزرگ‌تر از صفر وارد کنید.'),proposed_fare:v=>positiveNumber(v,'کرایه باید بزرگ‌تر از صفر باشد.')};
+    const rules={weight_value:v=>positiveNumber(v,'وزن معتبر و بزرگ‌تر از صفر وارد کنید.'),proposed_fare:v=>positiveInteger(v,'کرایه باید به‌صورت عدد صحیح و بزرگ‌تر از صفر وارد شود.')};
     if(!formValid(form,rules)) return;
     const button=$('[type="submit"]',form);setBusy(button,true);
-    try { const f=new FormData(form); const payload={title:f.get('title').trim(),cargo_description:f.get('cargo_description').trim()||null,cargo_type:f.get('cargo_type'),required_truck_type:f.get('required_truck_type'),weight_value:Number(normalizeDigits(f.get('weight_value'))),weight_unit:f.get('weight_unit'),origin_city:f.get('origin_city').trim(),destination_city:f.get('destination_city').trim(),pickup_address:f.get('pickup_address').trim(),delivery_address:f.get('delivery_address').trim(),loading_date:f.get('loading_date'),proposed_fare:Number(normalizeDigits(f.get('proposed_fare'))),notes:f.get('notes').trim()||null}; const {error}=await state.client.rpc('update_load_with_private_details',{p_load_id:form.dataset.loadId,p_payload:payload});if(error)throw error;closeModal();toast('تغییرات بار ذخیره شد.','success');render(); } catch(e) {toast(humanError(e),'error');setBusy(button,false);}
+    try { const f=new FormData(form); const payload={title:f.get('title').trim(),cargo_description:f.get('cargo_description').trim()||null,cargo_type:f.get('cargo_type'),required_truck_type:f.get('required_truck_type'),weight_value:normalizeDigits(f.get('weight_value')).trim(),weight_unit:f.get('weight_unit'),origin_city:f.get('origin_city').trim(),destination_city:f.get('destination_city').trim(),pickup_address:f.get('pickup_address').trim(),delivery_address:f.get('delivery_address').trim(),loading_date:f.get('loading_date'),proposed_fare:normalizeDigits(f.get('proposed_fare')).trim(),notes:f.get('notes').trim()||null}; const {error}=await state.client.rpc('update_load_with_private_details',{p_load_id:form.dataset.loadId,p_payload:payload});if(error)throw error;closeModal();toast('تغییرات بار ذخیره شد.','success');render(); } catch(e) {toast(humanError(e),'error');setBusy(button,false);}
   }
   async function submitOffer(form) {
-    if(!formValid(form,{offered_fare:v=>positiveNumber(v,'مبلغ پیشنهادی باید بزرگ‌تر از صفر باشد.')}))return;const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form);const {error}=await state.client.rpc('submit_freight_offer',{p_load_id:form.dataset.loadId,p_offered_fare:Number(normalizeDigits(f.get('offered_fare'))),p_note:f.get('note').trim()||null});if(error)throw error;closeModal();toast('پیشنهاد کرایه شما ثبت شد.','success');navigate('offers');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
+    if(!formValid(form,{offered_fare:v=>positiveInteger(v,'مبلغ پیشنهادی باید به‌صورت عدد صحیح و بزرگ‌تر از صفر باشد.')}))return;const button=$('[type="submit"]',form);setBusy(button,true);try{const f=new FormData(form);const {error}=await state.client.rpc('submit_freight_offer',{p_load_id:form.dataset.loadId,p_offered_fare:normalizeDigits(f.get('offered_fare')).trim(),p_note:f.get('note').trim()||null});if(error)throw error;closeModal();toast('پیشنهاد کرایه شما ثبت شد.','success');navigate('offers');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
   }
   async function submitReport(form) {if(!formValid(form))return;const b=$('[type="submit"]',form);setBusy(b,true);try{const f=new FormData(form);const {error}=await state.client.from('reports').insert({reporter_id:state.user.id,subject:f.get('subject').trim(),description:f.get('description').trim(),target_id:form.dataset.targetId||null});if(error)throw error;closeModal();toast('گزارش شما برای بررسی ثبت شد.','success');}catch(e){toast(humanError(e),'error');setBusy(b,false);}}
 
@@ -600,9 +644,9 @@
     if(target.dataset.action==='resend-confirmation'){await resendConfirmation(target);return;}
     if(target.dataset.action==='resend-recovery'){await resendRecovery(target);return;}
     if(target.dataset.action==='signout'){await signOut();return;}
-    if(target.dataset.cancelLoad){await cancelLoad(target.dataset.cancelLoad);return;}
-    if(target.dataset.acceptOffer){await acceptOffer(target.dataset.acceptOffer);return;}
-    if(target.dataset.shipmentStatus){await changeShipmentStatus(target.dataset.shipmentStatus,target.dataset.nextStatus);return;}
+    if(target.dataset.cancelLoad){await cancelLoad(target.dataset.cancelLoad, target);return;}
+    if(target.dataset.acceptOffer){await acceptOffer(target.dataset.acceptOffer, target);return;}
+    if(target.dataset.shipmentStatus){await changeShipmentStatus(target.dataset.shipmentStatus,target.dataset.nextStatus, target);return;}
   });
   document.addEventListener('submit', onSubmit);
   document.addEventListener('keydown', e => { if(e.key==='Escape')closeModal(); });
@@ -646,9 +690,22 @@
     }catch(e){toast(humanError(e),'error');setBusy(button,false);}
   }
   async function signOut(){try{const {error}=await state.client.auth.signOut();if(error)throw error;toast('از حساب خارج شدید.','success');navigate('home');}catch(e){toast(humanError(e),'error');}}
-  async function cancelLoad(id){if(!confirm('از لغو این بار مطمئن هستید؟ پس از توافق امکان لغو از این مسیر وجود ندارد.'))return;try{const {error}=await state.client.from('loads').update({status:'cancelled'}).eq('id',id);if(error)throw error;closeModal();toast('بار لغو شد.','success');render();}catch(e){toast(humanError(e),'error');}}
-  async function acceptOffer(id){if(!confirm('با پذیرش این پیشنهاد، سفارش حمل ایجاد و سایر پیشنهادها مختومه می‌شوند. ادامه می‌دهید؟'))return;try{const {error}=await state.client.rpc('accept_freight_offer',{p_offer_id:id});if(error)throw error;toast('پیشنهاد پذیرفته و سفارش حمل ایجاد شد.','success');navigate('shipments');}catch(e){toast(humanError(e),'error');}}
-  async function changeShipmentStatus(id,next){const labels={awaiting_pickup:'آماده بارگیری',in_transit:'در حال حمل',delivered:'تحویل‌شده'};if(!confirm(`وضعیت سفارش به «${labels[next]}» تغییر کند؟`))return;try{const {error}=await state.client.rpc('change_shipment_status',{p_shipment_id:id,p_new_status:next,p_note:null});if(error)throw error;closeModal();toast('وضعیت سفارش به‌روزرسانی شد.','success');render();}catch(e){toast(humanError(e),'error');}}
+  async function cancelLoad(id, button){
+    if(!confirm('از لغو این بار مطمئن هستید؟ پس از توافق امکان لغو از این مسیر وجود ندارد.'))return;
+    setBusy(button,true);
+    try{const {error}=await state.client.rpc('cancel_load',{p_load_id:id});if(error)throw error;closeModal();toast('بار لغو شد و پیشنهادهای باز مختومه شدند.','success');render();}catch(e){toast(humanError(e),'error');setBusy(button,false);}
+  }
+  async function acceptOffer(id, button){
+    if(!confirm('با پذیرش این پیشنهاد، سفارش حمل ایجاد و سایر پیشنهادها مختومه می‌شوند. ادامه می‌دهید؟'))return;
+    setBusy(button,true);
+    try{const {error}=await state.client.rpc('accept_freight_offer',{p_offer_id:id});if(error)throw error;toast('پیشنهاد پذیرفته و سفارش حمل ایجاد شد.','success');navigate('shipments');}catch(e){toast(humanError(e),'error');setBusy(button,false);}
+  }
+  async function changeShipmentStatus(id,next, button){
+    const labels={awaiting_pickup:'آماده بارگیری',in_transit:'در حال حمل',delivered:'تحویل‌شده'};
+    if(!confirm(`وضعیت سفارش به «${labels[next]}» تغییر کند؟`))return;
+    setBusy(button,true);
+    try{const {error}=await state.client.rpc('change_shipment_status',{p_shipment_id:id,p_new_status:next,p_note:null});if(error)throw error;closeModal();toast('وضعیت سفارش به‌روزرسانی شد.','success');render();}catch(e){toast(humanError(e),'error');setBusy(button,false);}
+  }
 
   init();
 })();
